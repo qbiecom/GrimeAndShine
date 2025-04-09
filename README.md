@@ -14,8 +14,10 @@ Grime and Shine is a browser-based vehicle-themed game. Players can interact wit
 To play the game:
 
 1. Clone or download this repository.
-2. Open the `index.html` file in your preferred web browser.
-3. Enjoy the game!
+2. Serve the project directory using a local web server (e.g., VSCode Live Server extension, Python's `http.server`, or any other web server).
+3. Open the provided local server URL (e.g., `http://localhost:8000`) in your preferred web browser.
+
+**Note:** Opening the `index.html` file directly will not work properly, as the JavaScript cannot load image assets without a web server.
 
 ## Project Structure
 
@@ -40,7 +42,7 @@ This project was created with the help of generative AI tools, including:
 - ChatGPT (used for generating images)
 - Google Gemini Pro 2.5
 - Claude Sonnet 3.7
-- The unknown Quasar model (used for code generation)
+- The unknown Quasar model
 
 ---
 
