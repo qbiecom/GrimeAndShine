@@ -33,9 +33,14 @@ To play the game:
 
 - A modern web browser (Chrome, Firefox, Edge, Safari)
 
-## License
+## AI Assistance
 
-This project is licensed under the MIT License.
+This project was created with the help of generative AI tools, including:
+
+- ChatGPT (used for generating images)
+- Google Gemini Pro 2.5
+- Claude Sonnet 3.7
+- The unknown Quasar model (used for code generation)
 
 ---
 
