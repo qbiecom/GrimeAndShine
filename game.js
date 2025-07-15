@@ -30,27 +30,10 @@ loadFont("arcadia", "Art/Arcadia-Regular.woff");
 
 const carTypes = [
 
-    // Car types with sprite names and modifiers
-
+    // Only using Sedan and Sports Car for now while new art is being created
     { name: 'Sedan', spriteName: 'sedan', width: 80, height: 120, searchModifier: 1, cleanModifier: 1, vacuumModifier: 1 },
 
-    { name: 'Sports Car', spriteName: 'sportscar', width: 85, height: 115, searchModifier: 1.2, cleanModifier: 0.8, vacuumModifier: 0.9 },
-
-    { name: 'Van', spriteName: 'van', width: 90, height: 125, searchModifier: 0.8, cleanModifier: 1.5, vacuumModifier: 1.8 },
-
-    { name: 'Junker', spriteName: 'junker', width: 80, height: 120, searchModifier: 1.5, cleanModifier: 1.2, vacuumModifier: 1.1 },
-
-    
-
-    // New car types
-
-    { name: 'Luxury Car', spriteName: 'luxury', width: 85, height: 125, searchModifier: 1.3, cleanModifier: 1.4, vacuumModifier: 0.7 },
-
-    { name: 'SUV', spriteName: 'suv', width: 95, height: 130, searchModifier: 1.1, cleanModifier: 1.7, vacuumModifier: 1.6 },
-
-    { name: 'Pickup Truck', spriteName: 'pickup', width: 90, height: 135, searchModifier: 1.8, cleanModifier: 1.3, vacuumModifier: 0.8 },
-
-    { name: 'Compact', spriteName: 'compact', width: 70, height: 100, searchModifier: 0.7, cleanModifier: 0.6, vacuumModifier: 0.5 }
+    { name: 'Sports Car', spriteName: 'sportscar', width: 85, height: 115, searchModifier: 1.2, cleanModifier: 0.8, vacuumModifier: 0.9 }
 
 ];
 
@@ -118,9 +101,17 @@ function resetParkingSpots() {
 
 loadSprite("background", "Art/backgroundv1.png"); // Use absolute path
 
-loadSprite("sedan", "Art/sedan.png");
+// Load sedan sprites for different states
+loadSprite("sedan", "Art/sedan.png"); // Neutral state
+loadSprite("sedan_clean", "Art/sedan_clean.png");
+loadSprite("sedan_dirty", "Art/sedan_dirty.png");
+loadSprite("sedan_vacuum", "Art/sedan_vacuum.png");
 
-loadSprite("sportscar", "Art/sportscar.png");
+// Load sportscar sprites for different states
+loadSprite("sportscar", "Art/sportscar.png"); // Neutral state
+loadSprite("sportscar_clean", "Art/sportscar_clean.png");
+loadSprite("sportscar_dirty", "Art/sportscar_dirty.png");
+loadSprite("sportscar_vacuum", "Art/sportscar_vacuum.png");
 
 loadSprite("van", "Art/van.png");
 
@@ -1344,6 +1335,44 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
             }
 
         ]);
+// --- Initialize Car State Properties ---
+        car.completed = false; // Track if all tasks for this car are done
+        car.state = 'idle'; // Initial state
+
+        // --- Set Car State (only two possible states) ---
+        const needsCleaning = Math.random() < 0.5; // 50% chance needs cleaning
+        
+        // Set the car state to either "needs cleaning" or "needs vacuum/searching"
+        car.needsCleaning = needsCleaning;
+        car.needsVacuumOrSearch = !needsCleaning;
+        
+        // --- Update sprite based on state ---
+        const carType = car.carData.spriteName; // 'sedan' or 'sportscar'
+        
+        if (car.needsCleaning) {
+            // Use dirty sprite
+            car.use(sprite(`${carType}_dirty`));
+        } else if (car.needsVacuumOrSearch) {
+            // Use vacuum/search sprite
+            car.use(sprite(`${carType}_vacuum`));
+        }
+        // --- End State Setting ---
+        
+        // --- Add state text overlay for testing (commented out) ---
+        /*
+        const stateText = car.add([
+            text(car.needsCleaning ? "NEEDS CLEANING" : "NEEDS VACUUM/SEARCH", {
+                size: 18,
+                width: 100,
+                align: "center"
+            }),
+            pos(0, 0),
+            anchor("center"),
+            color(255, 255, 255),
+            outline(2, rgb(0, 0, 0)),
+            z(10) // Make sure text is above the car
+        ]);
+        */
 
         carsInLevel.push(car);
 
@@ -1372,8 +1401,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
             // Optional: Add a visual indicator for special cars (e.g., tint)
 
             if (car.specialProperty === "Extra Dirty") {
-
-                car.color = rgb(139, 69, 19); // Brownish tint for dirty cars
+                // Use a lighter brown hue with some transparency for a more subtle effect
+                car.color = rgb(165, 113, 78, 0.4); // Lighter brown with transparency
 
             } else if (car.specialProperty === "Hidden Compartment") {
 
@@ -1773,11 +1802,15 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-        interactionMenu.add([text(`[1] Search (${searchTime}s)`, { size: 16 }), pos(0, -20), anchor("center")]);
-
-        interactionMenu.add([text(`[2] Clean (${cleanTime}s)`, { size: 16 }), pos(0, 0), anchor("center")]);
-
-        interactionMenu.add([text(`[3] Vacuum (${vacuumTime}s)`, { size: 16 }), pos(0, 20), anchor("center")]);
+        // Conditionally add actions based on car state
+        if (car.needsCleaning) {
+            // Only show Clean option
+            interactionMenu.add([text(`[2] Clean (${cleanTime}s)`, { size: 16 }), pos(0, 0), anchor("center")]);
+        } else if (car.needsVacuumOrSearch) {
+            // Show Search and Vacuum options (adjust Y positions)
+            interactionMenu.add([text(`[1] Search (${searchTime}s)`, { size: 16 }), pos(0, -10), anchor("center")]);
+            interactionMenu.add([text(`[3] Vacuum (${vacuumTime}s)`, { size: 16 }), pos(0, 10), anchor("center")]);
+        }
 
     }
 
@@ -2046,6 +2079,20 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 car.interacted = true;
 
                 car.opacity = 0.5; // Reduce opacity to show the car has been interacted with
+// Update sprite to show completed state
+                const carType = car.carData.spriteName; // 'sedan' or 'sportscar'
+                car.use(sprite(`${carType}_clean`)); // Use clean sprite for completed cars
+                
+                // Update the state text overlay to show completed (commented out)
+                /*
+                const stateTextObj = car.children.find(child => child.text &&
+                    (child.text.includes("NEEDS CLEANING") || child.text.includes("NEEDS VACUUM/SEARCH")));
+                
+                if (stateTextObj) {
+                    stateTextObj.text = "COMPLETED";
+                    stateTextObj.color = rgb(0, 255, 0); // Green for completed
+                }
+                */
 
                 
 
