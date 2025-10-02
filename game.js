@@ -1,17 +1,17 @@
+/**
+ * Grime and Shine - A Roguelike Car Cleaning Game
+ *
+ * This game uses the Kaboom.js library for rendering and game logic.
+ * Players clean cars in a parking lot, earning cash and upgrades.
+ */
+
 // Initialize Kaboom
-
 kaboom({
-
     width: 1280, // Match background image
-
     height: 720, // Match background image
-
     canvas: document.querySelector("#game-canvas"), // Optional: if you want to use a specific canvas element
-
     background: [50, 50, 50], // Dark gray background fallback
-
     font: "arcadia", // Use custom font
-
 });
 
 
@@ -24,18 +24,167 @@ loadFont("arcadia", "Art/Arcadia-Regular.woff");
 
 // --- Game Data ---
 
-
+// Configuration Constants
+const CONFIG = {
+    CANVAS_WIDTH: 1280,
+    CANVAS_HEIGHT: 720,
+    PLAYER_SPEED: 300,
+    PLAYER_SIZE: 100,
+    INTERACTION_RANGE: 120,
+    BASE_TIME: 60,
+    TIME_DECREASE_PER_LEVEL: 5,
+    MIN_TIME: 30,
+    LEVEL_COMPLETE_THRESHOLD: 0.5, // 50% of cars
+    SPECIAL_PROPERTY_BASE_CHANCE: 0.1,
+    SPECIAL_PROPERTY_LEVEL_INCREASE: 0.05,
+    RANDOM_EVENT_CHANCE: 0.3 // 30% chance per level
+};
 
 // Car Type Definitions (Adjusted for Kaboom - size might need tweaking)
-
+/**
+ * Each car type has unique characteristics that affect gameplay:
+ * - searchModifier: Affects search time and loot chance (higher = more time, better loot)
+ * - cleanModifier: Affects cleaning time (higher = more time)
+ * - vacuumModifier: Affects vacuuming time (higher = more time)
+ * - cashMultiplier: Affects base cash rewards (higher = more cash)
+ */
 const carTypes = [
-
-    // Only using Sedan and Sports Car for now while new art is being created
-    { name: 'Sedan', spriteName: 'sedan', width: 80, height: 120, searchModifier: 1, cleanModifier: 1, vacuumModifier: 1 },
-
-    { name: 'Sports Car', spriteName: 'sportscar', width: 85, height: 115, searchModifier: 1.2, cleanModifier: 0.8, vacuumModifier: 0.9 }
-
+    // Basic Cars (Common)
+    {
+        name: 'Sedan',
+        spriteName: 'sedan',
+        width: 80,
+        height: 120,
+        searchModifier: 1.0,
+        cleanModifier: 1.0,
+        vacuumModifier: 1.0,
+        cashMultiplier: 1.0,
+        rarity: 'common',
+        description: 'Standard family car'
+    },
+    {
+        name: 'Compact',
+        spriteName: 'compact',
+        width: 70,
+        height: 110,
+        searchModifier: 0.8,
+        cleanModifier: 0.8,
+        vacuumModifier: 0.7,
+        cashMultiplier: 0.8,
+        rarity: 'common',
+        description: 'Small and quick to service'
+    },
+    
+    // Mid-tier Cars (Uncommon)
+    {
+        name: 'Sports Car',
+        spriteName: 'sportscar',
+        width: 85,
+        height: 115,
+        searchModifier: 1.2,
+        cleanModifier: 0.8,
+        vacuumModifier: 0.9,
+        cashMultiplier: 1.3,
+        rarity: 'uncommon',
+        description: 'Fast to clean, good loot potential'
+    },
+    {
+        name: 'SUV',
+        spriteName: 'suv',
+        width: 90,
+        height: 130,
+        searchModifier: 1.1,
+        cleanModifier: 1.2,
+        vacuumModifier: 1.3,
+        cashMultiplier: 1.2,
+        rarity: 'uncommon',
+        description: 'Large vehicle, takes longer to service'
+    },
+    {
+        name: 'Pickup',
+        spriteName: 'pickup',
+        width: 85,
+        height: 125,
+        searchModifier: 1.0,
+        cleanModifier: 1.1,
+        vacuumModifier: 1.2,
+        cashMultiplier: 1.1,
+        rarity: 'uncommon',
+        description: 'Work truck with decent rewards'
+    },
+    
+    // Large/Special Cars (Rare)
+    {
+        name: 'Van',
+        spriteName: 'van',
+        width: 95,
+        height: 135,
+        searchModifier: 1.3,
+        cleanModifier: 1.3,
+        vacuumModifier: 1.5,
+        cashMultiplier: 1.4,
+        rarity: 'rare',
+        description: 'Large van, high rewards but time-consuming'
+    },
+    {
+        name: 'Luxury',
+        spriteName: 'luxury',
+        width: 85,
+        height: 120,
+        searchModifier: 1.4,
+        cleanModifier: 1.0,
+        vacuumModifier: 1.2,
+        cashMultiplier: 1.6,
+        rarity: 'rare',
+        description: 'Luxury car with excellent loot potential'
+    },
+    
+    // Special Cars (Very Rare)
+    {
+        name: 'Junker',
+        spriteName: 'junker',
+        width: 80,
+        height: 120,
+        searchModifier: 0.9,
+        cleanModifier: 1.4,
+        vacuumModifier: 1.3,
+        cashMultiplier: 0.9,
+        rarity: 'rare',
+        description: 'Old car, very dirty but quick to search'
+    }
 ];
+
+/**
+ * Get a random car type based on rarity weights
+ * Higher levels have better chances for rare cars
+ */
+function getRandomCarType(level) {
+    // Rarity weights that improve with level
+    const baseWeights = {
+        common: 60,
+        uncommon: 30,
+        rare: 10
+    };
+    
+    // Increase rare car chance by 2% per level (max 40%)
+    const rarityBonus = Math.min(level * 2, 40);
+    const weights = {
+        common: Math.max(baseWeights.common - rarityBonus, 20),
+        uncommon: baseWeights.uncommon,
+        rare: baseWeights.rare + rarityBonus
+    };
+    
+    // Build weighted pool
+    const pool = [];
+    carTypes.forEach(car => {
+        const weight = weights[car.rarity] || 10;
+        for (let i = 0; i < weight; i++) {
+            pool.push(car);
+        }
+    });
+    
+    return choose(pool);
+}
 
 
 
@@ -87,15 +236,225 @@ let parkingSpots = [
 
 
 
-// Function to reset spot occupancy for a new level
+// --- Utility Functions ---
 
+/**
+ * Reset all parking spots to unoccupied state for a new level
+ */
 function resetParkingSpots() {
-
     parkingSpots.forEach(spot => spot.occupied = false);
+}
 
+/**
+ * Calculate the final action duration based on base time, modifiers, and special properties
+ * @param {string} actionType - 'search', 'clean', or 'vacuum'
+ * @param {object} car - The car object being interacted with
+ * @returns {number} The calculated duration in seconds
+ */
+function calculateActionDuration(actionType, car) {
+    let duration;
+    
+    switch (actionType) {
+        case 'search':
+            duration = playerStats.baseSearchTime * playerStats.searchLootMultiplier;
+            break;
+        case 'clean':
+            duration = playerStats.baseCleanTime * playerStats.cleanSpeedMultiplier;
+            // Apply Extra Dirty penalty
+            if (car.specialProperty === "Extra Dirty") {
+                duration *= 1.5; // 50% longer to clean
+            }
+            break;
+        case 'vacuum':
+            duration = playerStats.baseVacuumTime * playerStats.vacuumSpeedMultiplier;
+            // Apply Complex Interior penalty
+            if (car.specialProperty === "Complex Interior") {
+                duration *= 1.5; // 50% longer to vacuum
+            }
+            break;
+        default:
+            duration = 5;
+    }
+    
+    // Apply car type modifier
+    duration *= car.carData[`${actionType}Modifier`];
+    
+    return duration;
+}
+
+/**
+ * Format a multiplier as a percentage for display
+ * @param {number} multiplier - The multiplier value
+ * @param {boolean} inverse - If true, calculate as (1 - multiplier) for speed bonuses
+ * @returns {number} The percentage value
+ */
+function formatMultiplierAsPercent(multiplier, inverse = false) {
+    if (inverse) {
+        return Math.round((1 - multiplier) * 100);
+    }
+    return Math.round((multiplier - 1) * 100);
 }
 
 
+
+// --- Persistent Data Management (localStorage) ---
+
+/**
+ * Save/Load system for persistent data between runs
+ */
+const SaveSystem = {
+    SAVE_KEY: 'grimeAndShine_saveData',
+    
+    /**
+     * Get default save data structure
+     */
+    getDefaultData() {
+        return {
+            metaCurrency: 0, // Stars earned across all runs
+            permanentUpgrades: [], // IDs of purchased permanent upgrades
+            unlockedCharacters: ['base'], // Character IDs that are unlocked
+            statistics: {
+                totalRuns: 0,
+                totalCarsCompleted: 0,
+                totalCashEarned: 0,
+                highestLevel: 1,
+                bestScore: 0
+            },
+            highScores: [], // Array of {score, level, date}
+            settings: {
+                selectedCharacter: 'base'
+            }
+        };
+    },
+    
+    /**
+     * Load save data from localStorage
+     */
+    load() {
+        try {
+            const saved = localStorage.getItem(this.SAVE_KEY);
+            if (saved) {
+                const data = JSON.parse(saved);
+                console.log('Save data loaded:', data);
+                return data;
+            }
+        } catch (e) {
+            console.error('Error loading save data:', e);
+        }
+        return this.getDefaultData();
+    },
+    
+    /**
+     * Save data to localStorage
+     */
+    save(data) {
+        try {
+            localStorage.setItem(this.SAVE_KEY, JSON.stringify(data));
+            console.log('Save data saved:', data);
+            return true;
+        } catch (e) {
+            console.error('Error saving data:', e);
+            return false;
+        }
+    },
+    
+    /**
+     * Add meta-currency (stars) to save data
+     */
+    addMetaCurrency(amount) {
+        const data = this.load();
+        data.metaCurrency += amount;
+        this.save(data);
+        return data.metaCurrency;
+    },
+    
+    /**
+     * Spend meta-currency
+     */
+    spendMetaCurrency(amount) {
+        const data = this.load();
+        if (data.metaCurrency >= amount) {
+            data.metaCurrency -= amount;
+            this.save(data);
+            return true;
+        }
+        return false;
+    },
+    
+    /**
+     * Add a permanent upgrade
+     */
+    addPermanentUpgrade(upgradeId) {
+        const data = this.load();
+        if (!data.permanentUpgrades.includes(upgradeId)) {
+            data.permanentUpgrades.push(upgradeId);
+            this.save(data);
+            return true;
+        }
+        return false;
+    },
+    
+    /**
+     * Check if permanent upgrade is owned
+     */
+    hasPermanentUpgrade(upgradeId) {
+        const data = this.load();
+        return data.permanentUpgrades.includes(upgradeId);
+    },
+    
+    /**
+     * Unlock a character
+     */
+    unlockCharacter(characterId) {
+        const data = this.load();
+        if (!data.unlockedCharacters.includes(characterId)) {
+            data.unlockedCharacters.push(characterId);
+            this.save(data);
+            return true;
+        }
+        return false;
+    },
+    
+    /**
+     * Update statistics after a run
+     */
+    updateStatistics(stats) {
+        const data = this.load();
+        data.statistics.totalRuns++;
+        data.statistics.totalCarsCompleted += stats.carsCompleted || 0;
+        data.statistics.totalCashEarned += stats.cashEarned || 0;
+        data.statistics.highestLevel = Math.max(data.statistics.highestLevel, stats.level || 1);
+        
+        // Update best score
+        if (stats.score && stats.score > data.statistics.bestScore) {
+            data.statistics.bestScore = stats.score;
+        }
+        
+        // Add to high scores (keep top 10)
+        if (stats.score) {
+            data.highScores.push({
+                score: stats.score,
+                level: stats.level,
+                date: new Date().toISOString()
+            });
+            data.highScores.sort((a, b) => b.score - a.score);
+            data.highScores = data.highScores.slice(0, 10);
+        }
+        
+        this.save(data);
+    },
+    
+    /**
+     * Reset all save data (for testing)
+     */
+    reset() {
+        localStorage.removeItem(this.SAVE_KEY);
+        console.log('Save data reset');
+    }
+};
+
+// Initialize save data on game start
+let saveData = SaveSystem.load();
 
 // --- Load Assets ---
 
@@ -243,7 +602,7 @@ scene("title", () => {
 
         rect(200, 60, { radius: 8 }),
 
-        pos(center().x, center().y + 280),
+        pos(center().x - 120, center().y + 280),
 
         color(255, 165, 0),
 
@@ -269,7 +628,32 @@ scene("title", () => {
 
     ]);
 
+    // Upgrades button (NEW)
+    const upgradesBtn = add([
+        rect(200, 60, { radius: 8 }),
+        pos(center().x + 120, center().y + 280),
+        color(255, 215, 0),
+        outline(4, rgb(200, 170, 0)),
+        anchor("center"),
+        area(),
+        "button",
+        { action: "upgrades" }
+    ]);
 
+    upgradesBtn.add([
+        text("★ Upgrades", { size: 24 }),
+        anchor("center"),
+        color(0, 0, 0)
+    ]);
+
+    // Display star count
+    const savedData = SaveSystem.load();
+    add([
+        text(`★ ${savedData.metaCurrency} Stars`, { size: 20 }),
+        pos(width() - 20, 20),
+        anchor("topright"),
+        color(255, 215, 0)
+    ]);
 
     // Handle button clicks
 
@@ -287,15 +671,35 @@ scene("title", () => {
 
             go("characters");
 
+        } else if (btn.action === "upgrades") {
+
+            go("permanentUpgrades");
+
         }
 
     });
 
+    // Hover effects
+    onHover("button", (btn) => {
+        btn.scale = vec2(1.05);
+        document.body.style.cursor = "pointer";
+    });
 
+    onHoverEnd("button", (btn) => {
+        btn.scale = vec2(1);
+        document.body.style.cursor = "default";
+    });
 
-    // Character Unlock Scene
+}); // End of title scene
 
-    scene("characters", () => {
+// Character Unlock Scene
+
+scene("characters", () => {
+    // Sync character unlock status with save data
+    const savedData = SaveSystem.load();
+    characters.forEach(char => {
+        char.unlocked = savedData.unlockedCharacters.includes(char.id);
+    });
 
         add([
 
@@ -321,19 +725,35 @@ scene("title", () => {
 
         ]);
 
-
+        add([
+            text("Press number key to select unlocked character", { size: 20 }),
+            pos(center().x, 100),
+            anchor("center"),
+            color(200, 200, 200)
+        ]);
 
         characters.forEach((char, index) => {
 
             const yPos = 140 + index * 100;
 
+            // Character button/selector
+            const charButton = add([
+                rect(width() - 100, 80, { radius: 8 }),
+                pos(50, yPos - 10),
+                color(char.unlocked ? (char.id === selectedCharacterId ? rgb(0, 100, 0) : rgb(40, 40, 60)) : rgb(30, 30, 30)),
+                outline(3, char.id === selectedCharacterId ? rgb(0, 255, 0) : rgb(100, 100, 100)),
+                area(),
+                char.unlocked ? "charButton" : null,
+                { charData: char, charIndex: index }
+            ]);
+
             add([
 
-                text(`${char.name} (${char.rarity})`, { size: 24 }),
+                text(`[${index + 1}] ${char.name} (${char.rarity})`, { size: 24 }),
 
                 pos(200, yPos),
 
-                color(char.unlocked ? rgb(0, 255, 0) : rgb(255, 255, 255))
+                color(char.unlocked ? rgb(0, 255, 0) : rgb(150, 150, 150))
 
             ]);
 
@@ -365,7 +785,7 @@ scene("title", () => {
 
                 add([
 
-                    text("Selected", { size: 18 }),
+                    text("✓ SELECTED", { size: 20 }),
 
                     pos(width() - 200, yPos + 15),
 
@@ -379,7 +799,7 @@ scene("title", () => {
 
                 add([
 
-                    text("Unlocked", { size: 18 }),
+                    text("Available", { size: 18 }),
 
                     pos(width() - 200, yPos + 15),
 
@@ -389,6 +809,15 @@ scene("title", () => {
 
                 ]);
 
+            }
+
+            // Handle character selection with number keys
+            if (char.unlocked) {
+                onKeyPress(String(index + 1), () => {
+                    selectedCharacterId = char.id;
+                    console.log(`Selected character: ${char.name}`);
+                    go("characters"); // Refresh scene to show selection
+                });
             }
 
         });
@@ -427,6 +856,13 @@ scene("title", () => {
 
 
 
+        // Handle button clicks for character selection
+        onClick("charButton", (btn) => {
+            selectedCharacterId = btn.charData.id;
+            console.log(`Selected character: ${btn.charData.name}`);
+            go("characters"); // Refresh scene to show selection
+        });
+
         onClick("button", () => {
 
             go("title");
@@ -440,6 +876,9 @@ scene("title", () => {
         onSceneLeave(() => {
 
             // Clean up event handlers
+            characters.forEach((_, index) => {
+                onKeyPress(String(index + 1), () => {});
+            });
 
             onKeyPress("escape", () => {});
 
@@ -453,29 +892,7 @@ scene("title", () => {
 
         });
 
-    });
-
-
-
-    // Hover effects
-
-    onHover("button", (btn) => {
-
-        btn.scale = vec2(1.05);
-
-        document.body.style.cursor = "pointer";
-
-    });
-
-    onHoverEnd("button", (btn) => {
-
-        btn.scale = vec2(1);
-
-        document.body.style.cursor = "default";
-
-    });
-
-});
+    }); // End of characters scene
 
 
 
@@ -618,119 +1035,280 @@ scene("rules", () => {
 
     });
 
-    
-
-    // Cleanup when leaving scene
-
-    onSceneLeave(() => {
-
-        // Clean up event handlers
-
-        onKeyPress("escape", () => {});
-
-    });
-
-
-
     onHover("button", (btn) => {
-
         btn.scale = vec2(1.05);
-
         document.body.style.cursor = "pointer";
-
     });
 
     onHoverEnd("button", (btn) => {
-
         btn.scale = vec2(1);
-
         document.body.style.cursor = "default";
-
     });
-
-
 
     onKeyPress("escape", () => {
-
         go("title");
-
     });
 
-});
+    // Cleanup when leaving scene
+    onSceneLeave(() => {
+        onKeyPress("escape", () => {});
+    });
 
+}); // End of rules scene
 
+// --- Permanent Upgrades Shop Scene ---
+scene("permanentUpgrades", () => {
+    const savedData = SaveSystem.load();
+    let currentStars = savedData.metaCurrency;
+
+    // Camera offset for scrolling
+    let camY = 0;
+    const maxScroll = Math.max(0, permanentUpgrades.length * 90 - 400); // Calculate max scroll based on content
+
+    add([
+        rect(width(), height()),
+        color(20, 20, 40),
+        z(-1)
+    ]);
+
+    // Fixed UI elements (don't scroll)
+    add([
+        text("★ Permanent Upgrades Shop ★", { size: 48 }),
+        pos(center().x, 60),
+        anchor("center"),
+        color(255, 215, 0),
+        fixed()
+    ]);
+
+    add([
+        text("Upgrades persist across all runs!", { size: 20 }),
+        pos(center().x, 110),
+        anchor("center"),
+        color(200, 200, 200),
+        fixed()
+    ]);
+
+    add([
+        text("Use Arrow Keys or Mouse Wheel to scroll", { size: 16 }),
+        pos(center().x, 135),
+        anchor("center"),
+        color(150, 150, 150),
+        fixed()
+    ]);
+
+    // Star display
+    const starText = add([
+        text(`Stars: ${currentStars}`, { size: 28 }),
+        pos(width() - 30, 30),
+        anchor("topright"),
+        color(255, 215, 0),
+        fixed()
+    ]);
+
+    // Display upgrades in a scrollable list
+    const startY = 180;
+    const spacing = 90;
+
+    // Scroll controls
+    onKeyDown("up", () => {
+        camY = Math.max(camY - 300 * dt(), 0);
+        camPos(0, camY);
+    });
+
+    onKeyDown("down", () => {
+        camY = Math.min(camY + 300 * dt(), maxScroll);
+        camPos(0, camY);
+    });
+
+    onKeyDown("arrow-up", () => {
+        camY = Math.max(camY - 300 * dt(), 0);
+        camPos(0, camY);
+    });
+
+    onKeyDown("arrow-down", () => {
+        camY = Math.min(camY + 300 * dt(), maxScroll);
+        camPos(0, camY);
+    });
+
+    permanentUpgrades.forEach((upgrade, index) => {
+        const yPos = startY + index * spacing;
+        const isOwned = savedData.permanentUpgrades.includes(upgrade.id);
+        const canAfford = currentStars >= upgrade.cost;
+        const meetsRequirements = !upgrade.requires || savedData.permanentUpgrades.includes(upgrade.requires);
+
+        // Upgrade container
+        const container = add([
+            rect(width() - 100, 80, { radius: 8 }),
+            pos(50, yPos),
+            color(isOwned ? rgb(0, 100, 0) : (canAfford && meetsRequirements ? rgb(40, 40, 60) : rgb(30, 30, 30))),
+            outline(3, isOwned ? rgb(0, 255, 0) : (canAfford && meetsRequirements ? rgb(100, 100, 255) : rgb(80, 80, 80))),
+            area(),
+            !isOwned && canAfford && meetsRequirements ? "upgradeButton" : null,
+            { upgradeData: upgrade, upgradeIndex: index }
+        ]);
+
+        // Upgrade name
+        add([
+            text(`[${index + 1}] ${upgrade.name}`, { size: 22 }),
+            pos(70, yPos + 15),
+            color(isOwned ? rgb(0, 255, 0) : rgb(255, 255, 255))
+        ]);
+
+        // Upgrade description
+        add([
+            text(upgrade.description, { size: 16, width: 600 }),
+            pos(70, yPos + 42),
+            color(200, 200, 200)
+        ]);
+
+        // Cost or status
+        if (isOwned) {
+            add([
+                text("✓ OWNED", { size: 20 }),
+                pos(width() - 80, yPos + 30),
+                anchor("right"),
+                color(0, 255, 0)
+            ]);
+        } else if (!meetsRequirements) {
+            add([
+                text("LOCKED", { size: 18 }),
+                pos(width() - 80, yPos + 30),
+                anchor("right"),
+                color(150, 150, 150)
+            ]);
+        } else {
+            add([
+                text(`★ ${upgrade.cost}`, { size: 24 }),
+                pos(width() - 80, yPos + 30),
+                anchor("right"),
+                color(canAfford ? rgb(255, 215, 0) : rgb(150, 100, 100))
+            ]);
+        }
+
+        // Handle number key purchase
+        if (!isOwned && canAfford && meetsRequirements) {
+            onKeyPress(String(index + 1), () => {
+                if (SaveSystem.spendMetaCurrency(upgrade.cost)) {
+                    SaveSystem.addPermanentUpgrade(upgrade.id);
+                    // Apply the upgrade effect if it's a character unlock
+                    if (upgrade.effect) {
+                        upgrade.effect();
+                    }
+                    console.log(`Purchased: ${upgrade.name}`);
+                    go("permanentUpgrades"); // Refresh scene
+                }
+            });
+        }
+    });
+
+    // Handle click purchase
+    onClick("upgradeButton", (btn) => {
+        const upgrade = btn.upgradeData;
+        if (SaveSystem.spendMetaCurrency(upgrade.cost)) {
+            SaveSystem.addPermanentUpgrade(upgrade.id);
+            if (upgrade.effect) {
+                upgrade.effect();
+            }
+            console.log(`Purchased: ${upgrade.name}`);
+            go("permanentUpgrades"); // Refresh scene
+        }
+    });
+
+    // Back button (fixed position)
+    const backBtn = add([
+        rect(200, 60, { radius: 8 }),
+        pos(center().x, height() - 80),
+        color(200, 100, 100),
+        outline(4, rgb(150, 80, 80)),
+        anchor("center"),
+        area(),
+        fixed(),
+        "button"
+    ]);
+
+    backBtn.add([
+        text("Back to Menu", { size: 24 }),
+        anchor("center"),
+        color(255, 255, 255)
+    ]);
+
+    onClick("button", () => {
+        camPos(0, 0); // Reset camera
+        go("title");
+    });
+
+    onKeyPress("escape", () => {
+        camPos(0, 0); // Reset camera
+        go("title");
+    });
+
+    // Cleanup
+    onSceneLeave(() => {
+        camPos(0, 0); // Reset camera when leaving
+        permanentUpgrades.forEach((_, index) => {
+            onKeyPress(String(index + 1), () => {});
+        });
+        onKeyPress("escape", () => {});
+        onKeyDown("up", () => {});
+        onKeyDown("down", () => {});
+        onKeyDown("arrow-up", () => {});
+        onKeyDown("arrow-down", () => {});
+    });
+}); // End of permanentUpgrades scene
 
 // --- Global Game State & UI ---
+// Note: These globals could be refactored into a state management system for better maintainability
 
 let currentLevel = 1;
-
-let currentCash = 0; // Changed from score to cash
-
-let timeLeft = 60; // Initial time
-
+let currentCash = 0; // Player's accumulated cash
+let timeLeft = 60; // Countdown timer for current level
 let timerInterval = null;
+let carsInLevel = []; // Array of car game objects in current level
 
-let carsInLevel = []; // Keep track of car game objects
-
+// UI References
 let scoreText;
-
 let timerText;
-
 let levelText;
-
 let interactionMenu = null; // Reference to the interaction menu group
-
 let targetCar = null; // Car currently targeted for interaction
-
 let isInteracting = false; // Flag to pause player movement during interaction
-
 let feedbackTextObject = null; // Reference to the persistent feedback text object
-
 let actionInProgress = false; // Flag to track if an action is currently in progress
-
 let actionProgressBar = null; // Reference to the action progress bar
 
 
 
 // --- Player Upgrade Stats ---
-
+/**
+ * Player stats that persist across levels and get modified by upgrades
+ * Multipliers < 1.0 are better for speed, > 1.0 are better for rewards
+ */
 let playerStats = {
-
+    // Speed multipliers (lower = faster)
     cleanSpeedMultiplier: 1.0, // Lower is faster (e.g., 0.8 means 20% faster)
-
     vacuumSpeedMultiplier: 1.0,
-
+    
+    // Reward multipliers (higher = better)
     searchLootMultiplier: 1.0, // Higher is better
-
-    searchAlarmModifier: 1.0, // Lower is better
-
-
+    searchAlarmModifier: 1.0, // Lower is better (reduces alarm chance)
 
     // Base action times (in seconds)
-
     baseCleanTime: 5,
-
     baseVacuumTime: 5,
-
     baseSearchTime: 5,
-
-    timeBonus: 0
-
-// End of playerStats
-
+    
+    // Bonus stats
+    timeBonus: 0 // Additional seconds added to timer
 };
 
-let playerUpgrades = [];
+let playerUpgrades = []; // Names of purchased upgrades for display
 
 
 
-// Temporary buffs active for the current level
-
-let activeBuffs = [];
-
-let purchasedUpgradeIds = [];
-
-let currentBuffs = [];
+// Temporary buffs and upgrade tracking
+let activeBuffs = []; // Buffs purchased in shop, applied at start of next level
+let purchasedUpgradeIds = []; // IDs of permanent upgrades to prevent duplicates
+let currentBuffs = []; // Buffs active in current level
 
 
 
@@ -916,8 +1494,125 @@ const availableUpgrades = [
 
     { id: "move4", name: "Quantum Dash", description: "Move 20% faster.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerSpeed *= 1.20; } },
 
-    { id: "vipservice", name: "VIP Service", description: "Every 5th car completed gives a significant cash bonus.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerStats.vipServiceActive = true; } }
+    { id: "vipservice", name: "VIP Service", description: "Every 5th car completed gives a significant cash bonus.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerStats.vipServiceActive = true; } },
+    
+    // ===== SPECIALIZED TOOLS (Unique Mechanics) =====
+    {
+        id: "steamcleaner",
+        name: "Steam Cleaner",
+        description: "Cleaning also vacuums the car (2-in-1 action).",
+        rarity: "rare",
+        color: rgb(128, 0, 255),
+        effect: () => { playerStats.steamCleanerActive = true; }
+    },
+    {
+        id: "magnetvac",
+        name: "Magnetic Vacuum",
+        description: "Vacuuming also searches for loose change.",
+        rarity: "rare",
+        color: rgb(128, 0, 255),
+        effect: () => { playerStats.magnetVacActive = true; }
+    },
+    {
+        id: "xrayvision",
+        name: "X-Ray Goggles",
+        description: "See special properties before interacting.",
+        rarity: "legendary",
+        color: rgb(255, 215, 0),
+        effect: () => { playerStats.xrayVision = true; }
+    },
+    {
+        id: "multitask",
+        name: "Multitasker",
+        description: "Perform all 3 actions on a car (takes 2x time, 3x rewards).",
+        rarity: "legendary",
+        color: rgb(255, 215, 0),
+        effect: () => { playerStats.multitaskActive = true; }
+    },
+    {
+        id: "efficiency",
+        name: "Efficiency Expert",
+        description: "Completing cars faster gives bonus cash.",
+        rarity: "uncommon",
+        color: rgb(0, 128, 255),
+        effect: () => { playerStats.efficiencyExpert = true; }
+    }
 
+];
+
+// --- Permanent Upgrades (Meta-Progression) ---
+/**
+ * Permanent upgrades that persist between runs
+ * Purchased with meta-currency (stars)
+ */
+const permanentUpgrades = [
+    {
+        id: "perm_time_1",
+        name: "Extra Time I",
+        description: "Start each level with +5 seconds",
+        cost: 50,
+        effect: () => { playerStats.timeBonus += 5; }
+    },
+    {
+        id: "perm_time_2",
+        name: "Extra Time II",
+        description: "Start each level with +10 seconds",
+        cost: 150,
+        requires: "perm_time_1",
+        effect: () => { playerStats.timeBonus += 10; }
+    },
+    {
+        id: "perm_speed_1",
+        name: "Quick Start",
+        description: "Start with 10% faster cleaning and vacuuming",
+        cost: 75,
+        effect: () => {
+            playerStats.cleanSpeedMultiplier *= 0.9;
+            playerStats.vacuumSpeedMultiplier *= 0.9;
+        }
+    },
+    {
+        id: "perm_loot_1",
+        name: "Lucky Finder",
+        description: "Start with 15% better loot from searches",
+        cost: 75,
+        effect: () => { playerStats.searchLootMultiplier *= 1.15; }
+    },
+    {
+        id: "perm_alarm_1",
+        name: "Stealth Training",
+        description: "Start with 20% reduced alarm chance",
+        cost: 100,
+        effect: () => { playerStats.searchAlarmModifier *= 0.8; }
+    },
+    {
+        id: "perm_starting_cash",
+        name: "Nest Egg",
+        description: "Start each run with $50",
+        cost: 100,
+        effect: () => { /* Applied at run start */ }
+    },
+    {
+        id: "perm_char_unlock_1",
+        name: "Unlock Speedster",
+        description: "Unlock the Speedster character",
+        cost: 200,
+        effect: () => { SaveSystem.unlockCharacter('speedster'); }
+    },
+    {
+        id: "perm_char_unlock_2",
+        name: "Unlock Lucky",
+        description: "Unlock the Lucky character",
+        cost: 400,
+        effect: () => { SaveSystem.unlockCharacter('lucky'); }
+    },
+    {
+        id: "perm_char_unlock_3",
+        name: "Unlock Ghost",
+        description: "Unlock the Ghost character",
+        cost: 600,
+        effect: () => { SaveSystem.unlockCharacter('ghost'); }
+    }
 ];
 
 const characters = [
@@ -1010,13 +1705,50 @@ const characters = [
 
 ];
 
-
+// --- Scoring System ---
+/**
+ * Calculate comprehensive score for a run
+ */
+function calculateScore(runData) {
+    const {
+        level,
+        carsCompleted,
+        totalCars,
+        cashEarned,
+        timeRemaining,
+        actionsPerformed
+    } = runData;
+    
+    let score = 0;
+    
+    // Base score from cars completed
+    score += carsCompleted * 100;
+    
+    // Completion bonus (all cars done)
+    if (carsCompleted === totalCars) {
+        score += 500 * level;
+    }
+    
+    // Level multiplier
+    score *= level;
+    
+    // Time bonus (remaining time * 10 per second)
+    score += timeRemaining * 10;
+    
+    // Cash bonus (10% of cash earned)
+    score += Math.floor(cashEarned * 0.1);
+    
+    // Efficiency bonus (if completed >75% of cars)
+    const completionRate = totalCars > 0 ? carsCompleted / totalCars : 0;
+    if (completionRate >= 0.75) {
+        score += 1000;
+    }
+    
+    return Math.floor(score);
+}
 
 // Currently selected character id
-
 let selectedCharacterId = "base";
-
-
 
 // Main Game Scene
 
@@ -1027,16 +1759,60 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     currentLevel = levelData.level;
 
     currentCash = levelData.cash;
+    
+    // Track if this is the start of a new run (level 1 with 0 cash)
+    const isNewRun = currentLevel === 1 && currentCash === 0;
+    
+    // Apply permanent upgrades at start of run
+    if (isNewRun) {
+        const savedData = SaveSystem.load();
+        
+        // Apply all purchased permanent upgrades
+        savedData.permanentUpgrades.forEach(upgradeId => {
+            const upgrade = permanentUpgrades.find(u => u.id === upgradeId);
+            if (upgrade && upgrade.effect) {
+                upgrade.effect();
+                console.log(`Applied permanent upgrade: ${upgrade.name}`);
+            }
+        });
+        
+        // Apply starting cash if player has Nest Egg upgrade
+        if (savedData.permanentUpgrades.includes('perm_starting_cash')) {
+            currentCash += 50;
+            console.log('Applied Nest Egg: +$50 starting cash');
+        }
+    }
 
     // Time decreases by 5 seconds per level, with a minimum of 30 seconds
 
-    timeLeft = Math.max(60 + playerStats.timeBonus - (currentLevel - 1) * 5, 30);
+    timeLeft = Math.max(CONFIG.BASE_TIME + playerStats.timeBonus - (currentLevel - 1) * CONFIG.TIME_DECREASE_PER_LEVEL, CONFIG.MIN_TIME);
 
     carsInLevel = [];
 
     resetParkingSpots();
 
+    // Reset event for this level
+    currentEvent = null;
+    extraCarsThisLevel = 0;
 
+    // Apply random event (30% chance)
+    if (Math.random() < CONFIG.RANDOM_EVENT_CHANCE) {
+        currentEvent = choose(levelEvents);
+        console.log(`Random Event: ${currentEvent.name} - ${currentEvent.description}`);
+        currentEvent.apply();
+        
+        // Show event notification
+        wait(0.5, () => {
+            showFeedback(`Event: ${currentEvent.name}!`, rgb(255, 215, 0));
+        });
+    }
+
+    // Apply selected character's ability
+    const selectedChar = characters.find(c => c.id === selectedCharacterId);
+    if (selectedChar && selectedChar.applyAbility) {
+        selectedChar.applyAbility();
+        console.log(`Applied ${selectedChar.name}'s ability`);
+    }
 
     // Apply temporary buffs purchased in shop
 
@@ -1066,11 +1842,11 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     // Player Setup
 
-    const playerSpeed = 300;
+    const playerSpeed = CONFIG.PLAYER_SPEED;
 
     // Player size (scaled down from 1024x1024)
 
-    const playerSize = 100; // Doubled from 50 to make player larger
+    const playerSize = CONFIG.PLAYER_SIZE;
 
     const playerScale = playerSize / 1024;
 
@@ -1214,7 +1990,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     // --- Car Spawning ---
 
-    const requestedCars = 5 + currentLevel * 2; // Increase cars per level
+    const requestedCars = 5 + currentLevel * 2 + extraCarsThisLevel; // Increase cars per level + event bonus
 
     const availableSpots = parkingSpots.filter(spot => !spot.occupied);
 
@@ -1242,11 +2018,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-        // Select a random car type
+        // Select a random car type using weighted selection based on level
 
-        const typeIndex = Math.floor(Math.random() * carTypes.length);
-
-        const selectedType = carTypes[typeIndex];
+        const selectedType = getRandomCarType(currentLevel);
 
 
 
@@ -1382,13 +2156,22 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         // --- Assign Special Property (Increasing chance with level) ---
 
-        const specialChance = 0.1 + (currentLevel * 0.05); // Base 10% + 5% per level
+        const specialChance = CONFIG.SPECIAL_PROPERTY_BASE_CHANCE + (currentLevel * CONFIG.SPECIAL_PROPERTY_LEVEL_INCREASE);
 
         if (Math.random() < specialChance) {
 
-            const possibleProperties = ["Extra Dirty", "Hidden Compartment"];
-
-            // Add more properties here later, e.g., "Complex Interior"
+            // More special properties unlock at higher levels
+            let possibleProperties = ["Extra Dirty", "Hidden Compartment"];
+            
+            if (currentLevel >= 3) {
+                possibleProperties.push("Complex Interior"); // Takes longer to vacuum
+            }
+            if (currentLevel >= 5) {
+                possibleProperties.push("VIP Owner"); // Higher rewards, no alarm risk
+            }
+            if (currentLevel >= 7) {
+                possibleProperties.push("Suspicious"); // Higher alarm chance, better loot
+            }
 
 
 
@@ -1396,18 +2179,33 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
             console.log(`Car in spot ${spot.id} is special: ${car.specialProperty}`);
 
-
-
-            // Optional: Add a visual indicator for special cars (e.g., tint)
-
+            // Visual indicator for special cars
             if (car.specialProperty === "Extra Dirty") {
-                // Use a lighter brown hue with some transparency for a more subtle effect
-                car.color = rgb(165, 113, 78, 0.4); // Lighter brown with transparency
-
+                car.color = rgb(165, 113, 78, 0.4); // Brown tint
             } else if (car.specialProperty === "Hidden Compartment") {
-
-                car.color = rgb(255, 215, 0); // Gold tint for hidden compartment cars
-
+                car.color = rgb(255, 215, 0, 0.3); // Gold tint
+            } else if (car.specialProperty === "Complex Interior") {
+                car.color = rgb(128, 0, 255, 0.3); // Purple tint
+            } else if (car.specialProperty === "VIP Owner") {
+                car.color = rgb(0, 255, 255, 0.3); // Cyan tint
+            } else if (car.specialProperty === "Suspicious") {
+                car.color = rgb(255, 0, 0, 0.3); // Red tint
+            }
+            
+            // X-Ray Goggles: Show special property text
+            if (playerStats.xrayVision) {
+                car.add([
+                    text(car.specialProperty, {
+                        size: 14,
+                        width: 100,
+                        align: "center"
+                    }),
+                    pos(0, -60),
+                    anchor("center"),
+                    color(255, 255, 0),
+                    outline(2, rgb(0, 0, 0)),
+                    z(10)
+                ]);
             }
 
         }
@@ -1678,7 +2476,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 // Level is complete if at least 50% of cars have been interacted with
 
-                if (interactionPercentage >= 50) {
+                if (interactionPercentage >= CONFIG.LEVEL_COMPLETE_THRESHOLD * 100) {
 
                     console.log(`Level ${currentLevel} complete! Advancing to upgrade screen.`);
 
@@ -1690,9 +2488,14 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                     console.log(`Level ${currentLevel} failed. Less than 50% of cars interacted.`);
 
-                    // Go to game over, passing the final cash
+                    // Go to game over, passing all relevant data
 
-                    go("gameOver", { cash: currentCash });
+                    go("gameOver", {
+                        cash: currentCash,
+                        level: currentLevel,
+                        carsCompleted: interactedCars,
+                        totalCars: totalCars
+                    });
 
                 }
 
@@ -1962,51 +2765,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         const modifier = car.carData[`${actionType}Modifier`]; // Get modifier for the action
 
-
-
-        // Calculate action duration based on action type and modifiers
-
-        let actionDuration;
-
-        switch (actionType) {
-
-            case 'search':
-
-                actionDuration = playerStats.baseSearchTime * playerStats.searchLootMultiplier;
-
-                break;
-
-            case 'clean':
-
-                actionDuration = playerStats.baseCleanTime * playerStats.cleanSpeedMultiplier;
-
-                // Apply Extra Dirty penalty
-
-                if (car.specialProperty === "Extra Dirty") {
-
-                    actionDuration *= 1.5; // 50% longer to clean
-
-                }
-
-                break;
-
-            case 'vacuum':
-
-                actionDuration = playerStats.baseVacuumTime * playerStats.vacuumSpeedMultiplier;
-
-                break;
-
-            default:
-
-                actionDuration = 5;
-
-        }
-
-
-
-        // Apply car type modifier
-
-        actionDuration *= modifier;
+        // Calculate action duration using helper function
+        const actionDuration = calculateActionDuration(actionType, car);
 
 
 
@@ -2130,21 +2890,21 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                     let baseLootChance = 0.3;
 
-                    const baseAlarmChance = 0.2;
+                    let baseAlarmChance = 0.2;
 
-
-
-                    // Apply Hidden Compartment bonus
-
+                    // Apply special property modifiers
                     if (car.specialProperty === "Hidden Compartment") {
-
                         baseLootChance *= 1.5; // 50% higher chance to find loot
-
                         console.log("Hidden Compartment bonus applied to search!");
-
+                    } else if (car.specialProperty === "VIP Owner") {
+                        baseAlarmChance = 0; // No alarm risk for VIP cars
+                        baseLootChance *= 1.3; // 30% better loot
+                        console.log("VIP Owner: No alarm risk, better loot!");
+                    } else if (car.specialProperty === "Suspicious") {
+                        baseAlarmChance *= 1.5; // 50% higher alarm chance
+                        baseLootChance *= 1.4; // 40% better loot
+                        console.log("Suspicious car: Higher risk, higher reward!");
                     }
-
-
 
                     const lootChance = Math.min(baseLootChance * modifier, 0.9);
 
@@ -2156,14 +2916,15 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                     if (searchOutcome < lootChance) {
 
-                        let lootAmount = Math.floor((Math.random() * 20 + 10) * modifier * playerStats.searchLootMultiplier); // Apply loot multiplier
+                        let lootAmount = Math.floor((Math.random() * 20 + 10) * modifier * playerStats.searchLootMultiplier * (car.carData.cashMultiplier || 1)); // Apply loot multiplier and car cash multiplier
 
-                        // Apply Hidden Compartment bonus
-
+                        // Apply special property bonuses
                         if (car.specialProperty === "Hidden Compartment") {
-
                             lootAmount = Math.floor(lootAmount * 1.5); // 50% more loot
-
+                        } else if (car.specialProperty === "VIP Owner") {
+                            lootAmount = Math.floor(lootAmount * 1.3); // 30% more loot
+                        } else if (car.specialProperty === "Suspicious") {
+                            lootAmount = Math.floor(lootAmount * 1.4); // 40% more loot
                         }
 
                         currentCash += lootAmount;
@@ -2194,7 +2955,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                         const baseCash = 5;
 
-                        const cash = Math.round(baseCash * modifier);
+                        const cash = Math.round(baseCash * modifier * (car.carData.cashMultiplier || 1));
 
                         currentCash += cash;
 
@@ -2250,7 +3011,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-                    const cash = Math.round(baseCash * modifier); // Use the potentially modified baseCash
+                    const cash = Math.round(baseCash * modifier * (car.carData.cashMultiplier || 1)); // Apply car type cash multiplier
 
                     currentCash += cash;
 
@@ -2269,6 +3030,17 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                     }
 
                     showFeedback(feedbackMsg, rgb(0, 180, 255)); // Blue for clean
+                    
+                    // Steam Cleaner: Cleaning also vacuums
+                    if (playerStats.steamCleanerActive && car.needsVacuumOrSearch) {
+                        const vacuumCash = Math.round(15 * modifier * (car.carData.cashMultiplier || 1));
+                        currentCash += vacuumCash;
+                        markUIDirty('cash');
+                        console.log(`Steam Cleaner bonus: +$${vacuumCash} from auto-vacuum`);
+                        wait(0.5, () => {
+                            showFeedback(`Steam Bonus! +$${vacuumCash}`, rgb(150, 200, 255));
+                        });
+                    }
 
                 }
 
@@ -2280,19 +3052,39 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                     console.log("Performing Vacuum on car:", car.carData.name);
 
-                    const baseCash = 15;
+                    let baseCash = 15;
+                    
+                    // Apply Complex Interior penalty/bonus
+                    if (car.specialProperty === "Complex Interior") {
+                        baseCash *= 1.5; // 50% more cash for complex interior
+                        console.log("Complex Interior bonus applied!");
+                    }
 
-                    const cash = Math.round(baseCash * modifier);
+                    const cash = Math.round(baseCash * modifier * (car.carData.cashMultiplier || 1));
 
                     currentCash += cash;
 
                     markUIDirty('cash');
 
-
+                    let vacuumMsg = `Vacuumed! +$${cash}`;
+                    if (car.specialProperty === "Complex Interior") {
+                        vacuumMsg += " (Complex!)";
+                    }
 
                     console.log(`Vacuumed car. +$${cash}`);
 
-                    showFeedback(`Vacuumed! +$${cash}`, rgb(200, 0, 255)); // Purple for vacuum
+                    showFeedback(vacuumMsg, rgb(200, 0, 255)); // Purple for vacuum
+                    
+                    // Magnetic Vacuum: Vacuuming also searches for loose change
+                    if (playerStats.magnetVacActive) {
+                        const bonusCash = Math.floor((Math.random() * 10 + 5) * (car.carData.cashMultiplier || 1));
+                        currentCash += bonusCash;
+                        markUIDirty('cash');
+                        console.log(`Magnetic Vacuum found: +$${bonusCash}`);
+                        wait(0.5, () => {
+                            showFeedback(`Magnet Bonus! +$${bonusCash}`, rgb(255, 215, 0));
+                        });
+                    }
 
                 }
 
@@ -2476,7 +3268,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         let closestCar = null;
 
-        let minDist = 120; // Increased from 80 to allow interaction from further away
+        let minDist = CONFIG.INTERACTION_RANGE;
 
 
 
@@ -2588,64 +3380,131 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-scene("gameOver", ({ cash }) => { // Receive cash from main scene
+scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive data from main scene
+
+    // Calculate final score
+    const finalScore = calculateScore({
+        level: level || 1,
+        carsCompleted: carsCompleted || 0,
+        totalCars: totalCars || 1,
+        cashEarned: cash || 0,
+        timeRemaining: 0,
+        actionsPerformed: carsCompleted || 0
+    });
+    
+    // Calculate meta-currency reward (stars)
+    // Award 1 star per level reached + bonus stars for performance
+    const baseStars = level || 1;
+    const bonusStars = Math.floor(finalScore / 1000); // 1 star per 1000 score
+    const totalStars = baseStars + bonusStars;
+    
+    // Save statistics and award stars
+    SaveSystem.updateStatistics({
+        level: level || 1,
+        carsCompleted: carsCompleted || 0,
+        cashEarned: cash || 0,
+        score: finalScore
+    });
+    
+    const newMetaCurrency = SaveSystem.addMetaCurrency(totalStars);
+    
+    console.log(`Game Over - Score: ${finalScore}, Stars Earned: ${totalStars}, Total Stars: ${newMetaCurrency}`);
+
+    // Background
+    add([
+        rect(width(), height()),
+        color(20, 20, 30),
+        z(-1)
+    ]);
 
     add([
-
         text("Game Over!", { size: 64 }),
-
-        pos(center().x, center().y - 100),
-
+        pos(center().x, 80),
         anchor("center"),
-
+        color(255, 100, 100)
     ]);
 
-
+    // Stats display
+    add([
+        text(`Level Reached: ${level}`, { size: 32 }),
+        pos(center().x, 180),
+        anchor("center"),
+        color(255, 255, 255)
+    ]);
 
     add([
-
-        text(`Final Cash: $${cash}`, { size: 40 }),
-
-        pos(center().x, center().y),
-
+        text(`Cars Completed: ${carsCompleted}/${totalCars}`, { size: 28 }),
+        pos(center().x, 230),
         anchor("center"),
-
+        color(200, 200, 255)
     ]);
-
-
 
     add([
-
-        text("Press SPACE to Restart", { size: 32 }),
-
-        pos(center().x, center().y + 100),
-
+        text(`Final Cash: $${cash}`, { size: 28 }),
+        pos(center().x, 270),
         anchor("center"),
-
+        color(0, 255, 100)
     ]);
 
+    add([
+        text(`Score: ${finalScore}`, { size: 36 }),
+        pos(center().x, 320),
+        anchor("center"),
+        color(255, 215, 0)
+    ]);
 
+    // Stars earned
+    add([
+        text(`★ Stars Earned: ${totalStars} ★`, { size: 32 }),
+        pos(center().x, 380),
+        anchor("center"),
+        color(255, 215, 0)
+    ]);
+
+    add([
+        text(`Total Stars: ${newMetaCurrency}`, { size: 24 }),
+        pos(center().x, 420),
+        anchor("center"),
+        color(200, 200, 100)
+    ]);
+
+    // Instructions
+    add([
+        text("Press SPACE to return to menu", { size: 24 }),
+        pos(center().x, 500),
+        anchor("center"),
+        color(150, 150, 150)
+    ]);
+
+    add([
+        text("Visit the Upgrades shop to spend your stars!", { size: 20 }),
+        pos(center().x, 540),
+        anchor("center"),
+        color(100, 200, 255)
+    ]);
 
     // Go back to title scene on space press
-
     onKeyPress("space", () => {
-
+        // Reset player stats for next run
+        playerStats = {
+            cleanSpeedMultiplier: 1.0,
+            vacuumSpeedMultiplier: 1.0,
+            searchLootMultiplier: 1.0,
+            searchAlarmModifier: 1.0,
+            baseCleanTime: 5,
+            baseVacuumTime: 5,
+            baseSearchTime: 5,
+            timeBonus: 0
+        };
+        playerUpgrades = [];
         go("title");
-
     });
-
     
-
     // Cleanup when leaving scene
-
     onSceneLeave(() => {
-
         // Clean up event handlers
-
         onKeyPress("space", () => {});
-
     });
-
 });
 
 
@@ -2727,14 +3586,10 @@ scene("upgradeScene", ({ nextLevel, cash }) => {
 
 
     // Format stats for display (convert multipliers to percentages)
-
-    const cleanSpeed = Math.round((1 - playerStats.cleanSpeedMultiplier) * 100);
-
-    const vacuumSpeed = Math.round((1 - playerStats.vacuumSpeedMultiplier) * 100);
-
-    const lootBonus = Math.round((playerStats.searchLootMultiplier - 1) * 100);
-
-    const alarmReduction = Math.round((1 - playerStats.searchAlarmModifier) * 100);
+    const cleanSpeed = formatMultiplierAsPercent(playerStats.cleanSpeedMultiplier, true);
+    const vacuumSpeed = formatMultiplierAsPercent(playerStats.vacuumSpeedMultiplier, true);
+    const lootBonus = formatMultiplierAsPercent(playerStats.searchLootMultiplier, false);
+    const alarmReduction = formatMultiplierAsPercent(playerStats.searchAlarmModifier, true);
 
 
 
