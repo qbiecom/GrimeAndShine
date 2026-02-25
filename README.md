@@ -12,7 +12,7 @@ Grime and Shine is a browser-based, vehicle-themed **roguelike** game. Players t
 - **Roguelike Elements:**
     - **Upgrades:** After each successful level, choose one of three offered upgrades or temporary buffs to enhance player stats (e.g., speed, loot chance, alarm reduction) for the next level or the entire run.
     - **Perma-death (Run-based):** Failing a level (less than 50% cars serviced when time runs out) ends the current run.
-    - **Meta-progression:** Earned cash can potentially be used to unlock new characters with unique starting abilities (currently implemented but unlock mechanism might need refinement).
+- **Meta-progression:** Unlock characters in two ways—(1) spend run cash at the end-of-level upgrade screen to end the run and unlock immediately, and (2) spend earned Stars in the Permanent Upgrades shop to unlock characters persistently.
 - **Car Variety:** Different car types (Sedan, SUV, Sports Car, etc.) have unique modifiers affecting action times and outcomes.
 - **Special Properties:** Cars may randomly spawn with special properties like "Extra Dirty" (longer cleaning time, more cash) or "Hidden Compartment" (better search loot).
 - **Random Events:** Some levels may feature random events (e.g., "Rainstorm" making cleaning faster) that modify gameplay.

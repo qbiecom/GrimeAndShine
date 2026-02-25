@@ -3906,6 +3906,7 @@ scene("upgradeScene", ({ nextLevel, cash }) => {
             cash -= character.cost;
 
             character.unlocked = true;
+            SaveSystem.unlockCharacter(character.id);
 
             console.log(`Unlocked character: ${character.name}`);
 
