@@ -1639,16 +1639,6 @@ function setNarrativePanel(message) {
     clearNarrativePanel();
 }
 
-function getCurrentRunNarrativeFallback() {
-    if (!currentLevelObjective) {
-        return currentLevel > 0
-            ? `Level ${currentLevel} is underway. Watch the lot and stay on pace.`
-            : "Run updates and story beats will appear here.";
-    }
-
-    return `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`;
-}
-
 function updateRunHUD(options = {}) {
     const {
         scene = "Menu",
@@ -1683,8 +1673,6 @@ function updateRunHUD(options = {}) {
 
     if (typeof narrative === "string" && narrative.length > 0) {
         setNarrativePanel(narrative);
-    } else if (inRun) {
-        setNarrativePanel(getCurrentRunNarrativeFallback());
     } else if (!inRun) {
         setNarrativePanel("");
     }
@@ -2642,7 +2630,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
-        objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
+        objectiveSummary: getObjectiveSummary(),
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
@@ -2672,7 +2660,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
-        objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
+        objectiveSummary: getObjectiveSummary(),
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
@@ -2962,7 +2950,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 timer: timeLeft,
                 eventName: currentEventState.name || "None",
                 eventSummary: getEventSummary(currentEventState),
-                objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
+                objectiveSummary: getObjectiveSummary(),
                 upgrades: playerUpgrades,
                 buffs: currentBuffs.map((buff) => buff.name),
                 runState: getRunStateLabel(),
@@ -3426,7 +3414,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
             timer: timeLeft,
             eventName: currentEventState.name || "None",
             eventSummary: getEventSummary(currentEventState),
-            objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
+            objectiveSummary: getObjectiveSummary(),
             upgrades: playerUpgrades,
             buffs: currentBuffs.map((buff) => buff.name),
             runState: `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} in progress`,
@@ -4065,12 +4053,12 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
-        objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
+        objectiveSummary: getObjectiveSummary(),
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: getRunStateLabel(),
-        narrative: getLevelIntroNarrative() || `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`,
-        announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`,
+        narrative: getLevelIntroNarrative(),
+        announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}`,
     });
 
     if (isNewRun) {
