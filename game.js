@@ -2014,9 +2014,19 @@ function queueNarrativeFeedback(lines, color = rgb(220, 220, 255), startDelay = 
         return;
     }
 
+    const queuedLines = [];
+
     lines
         .filter((line) => typeof line === "string" && line.trim().length > 0)
-        .forEach((line, index) => {
+        .forEach((line) => {
+            const trimmedLine = line.trim();
+
+            if (!queuedLines.includes(trimmedLine)) {
+                queuedLines.push(trimmedLine);
+            }
+        });
+
+    queuedLines.forEach((line, index) => {
             wait(startDelay + (index * stepDelay), () => {
                 setNarrativePanel(line);
                 showFeedback(line, color);
@@ -2634,7 +2644,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
-        narrative: getLevelIntroNarrative() || `${currentLevelObjective ? currentLevelObjective.name : `Level ${currentLevel}`}. ${getObjectiveSummary()}`,
     });
 
     // Apply selected character's ability
@@ -2664,7 +2673,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
-        narrative: getLevelIntroNarrative() || `${currentLevelObjective ? currentLevelObjective.name : `Level ${currentLevel}`}. ${getObjectiveSummary()}`,
     });
 
 
