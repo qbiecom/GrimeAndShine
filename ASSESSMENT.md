@@ -20,11 +20,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - Full completion also counts `car.interacted` in `game.js:3201` through `game.js:3225`.
 - This matches the current one-action model, but it weakens design intent around actually servicing cars and makes some upgrade descriptions misleading.
 
-### 2. Debug UI is always visible in gameplay
-
-- `debugText` is added in `game.js:1937` through `game.js:1947` and constantly updated in `game.js:1951` through `game.js:1987`.
-- This looks like development instrumentation left enabled in production.
-
 ## Security Review
 
 ### 1. Third-party engine is loaded from a CDN without Subresource Integrity
@@ -90,9 +85,8 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Recommended Fix Order
 
-1. Remove the always-on debug UI from gameplay builds.
-2. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
-3. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
+1. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
+2. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
 
 ## Overall Assessment
 

@@ -2014,33 +2014,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-    // Debug flag to check if player is interacting
-
-    let debugText = add([
-
-        text("Movement: Active", { size: 16 }),
-
-        pos(20, height() - 20),
-
-        fixed(),
-
-        z(100)
-
-    ]);
-
-
-
     player.onUpdate(() => {
-
-        // Update debug text
-
-        let movementStatus = "Active";
-
-        if (isInteracting) movementStatus = "Menu Open";
-
-        if (actionInProgress) movementStatus = "Action in Progress";
-
-        debugText.text = `Movement: ${movementStatus} | Pos: ${Math.floor(player.pos.x)},${Math.floor(player.pos.y)}`;
 
 
 
