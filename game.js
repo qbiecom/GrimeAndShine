@@ -198,51 +198,84 @@ function getRandomCarType(level) {
 
 
 
-// Parking Spot Definitions based on art/backgroundv1.png (1280x720)
+// Parking spot layout generation based on art/backgroundv1.png (1280x720)
+// Layouts keep the existing two vertical parking bands and swap in validated row templates.
 
-// Coordinates are approximate top-left corners for vertical spots.
-
-// Added 'id' for easier tracking.
-
-let parkingSpots = [
-
-    // Top Row (Facing Down) - Y ~50px
-
-    { id: 1, x: 70, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 2, x: 215, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 3, x: 360, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 4, x: 505, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 5, x: 650, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 6, x: 795, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 7, x: 940, y: 50, orientation: 'vertical', occupied: false },
-
-    { id: 8, x: 1085, y: 50, orientation: 'vertical', occupied: false },
-
-    // Bottom Row (Facing Up) - Y ~410px
-
-    { id: 9, x: 70, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 10, x: 215, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 11, x: 360, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 12, x: 505, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 13, x: 650, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 14, x: 795, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 15, x: 940, y: 410, orientation: 'vertical', occupied: false },
-
-    { id: 16, x: 1085, y: 410, orientation: 'vertical', occupied: false },
-
+const PARKING_SPOT_WIDTH = 120;
+const PARKING_SPOT_CENTER_OFFSET_Y = 90;
+const PARKING_ROW_LIBRARY = [
+    { key: "full", slots: [70, 215, 360, 505, 650, 795, 940, 1085] },
+    { key: "offsetA", slots: [70, 215, 360, 650, 795, 940, 1085] },
+    { key: "offsetB", slots: [70, 215, 505, 650, 795, 940, 1085] },
+    { key: "centerGap", slots: [70, 215, 360, 505, 795, 940, 1085] },
+    { key: "staggered", slots: [70, 360, 505, 650, 795, 940, 1085] },
 ];
+const PARKING_BANDS = [
+    { key: "north", y: 50, orientation: "vertical" },
+    { key: "south", y: 410, orientation: "vertical" },
+];
+let parkingSpots = [];
+let currentParkingLayout = null;
+
+function getRequiredParkingSpotCount(level, extraCars = 0) {
+    return 5 + level * 2 + extraCars;
+}
+
+function getEligibleParkingRowTemplates(level, extraCars = 0) {
+    const minimumSpots = Math.min(16, Math.max(10, getRequiredParkingSpotCount(level, extraCars)));
+    return PARKING_ROW_LIBRARY.filter((topTemplate) => {
+        return PARKING_ROW_LIBRARY.some((bottomTemplate) => (topTemplate.slots.length + bottomTemplate.slots.length) >= minimumSpots);
+    });
+}
+
+function chooseParkingRowTemplate(level, extraCars = 0, disallowedKey = null) {
+    const eligibleTemplates = getEligibleParkingRowTemplates(level, extraCars);
+    const filteredTemplates = disallowedKey
+        ? eligibleTemplates.filter((template) => template.key !== disallowedKey)
+        : eligibleTemplates;
+    const templatePool = filteredTemplates.length > 0 ? filteredTemplates : eligibleTemplates;
+    return choose(templatePool);
+}
+
+function generateParkingLayout(level, extraCars = 0) {
+    const topTemplate = chooseParkingRowTemplate(level, extraCars);
+    const bottomTemplate = chooseParkingRowTemplate(level, extraCars, topTemplate.key);
+    const selectedRows = [topTemplate, bottomTemplate];
+    let spotId = 1;
+    const spots = [];
+
+    selectedRows.forEach((template, bandIndex) => {
+        const band = PARKING_BANDS[bandIndex];
+        template.slots.forEach((x) => {
+            spots.push({
+                id: spotId,
+                x,
+                y: band.y,
+                orientation: band.orientation,
+                occupied: false,
+                bandKey: band.key,
+                templateKey: template.key,
+            });
+            spotId += 1;
+        });
+    });
+
+    return {
+        topRowKey: topTemplate.key,
+        bottomRowKey: bottomTemplate.key,
+        totalSpots: spots.length,
+        spots,
+    };
+}
+
+function getParkingLayoutSummary(layout = currentParkingLayout) {
+    if (!layout) {
+        return "Standard bays";
+    }
+
+    const formatKey = (value) => value.replace(/([A-Z])/g, " $1").replace(/^./, (match) => match.toUpperCase());
+    return `${formatKey(layout.topRowKey)} / ${formatKey(layout.bottomRowKey)} bays (${layout.totalSpots} spots)`;
+}
 
 
 
@@ -253,6 +286,115 @@ let parkingSpots = [
  */
 function resetParkingSpots() {
     parkingSpots.forEach(spot => spot.occupied = false);
+}
+
+function applySpecialPropertyToCar(car, level) {
+    const specialChance = CONFIG.SPECIAL_PROPERTY_BASE_CHANCE + (level * CONFIG.SPECIAL_PROPERTY_LEVEL_INCREASE);
+
+    if (Math.random() >= specialChance) {
+        return;
+    }
+
+    let possibleProperties = ["Extra Dirty", "Hidden Compartment"];
+
+    if (level >= 3) {
+        possibleProperties.push("Complex Interior");
+    }
+    if (level >= 5) {
+        possibleProperties.push("VIP Owner");
+    }
+    if (level >= 7) {
+        possibleProperties.push("Suspicious");
+    }
+
+    car.specialProperty = choose(possibleProperties);
+    console.log(`Car in spot ${car.spotId} is special: ${car.specialProperty}`);
+
+    if (car.specialProperty === "Extra Dirty") {
+        car.color = rgb(165, 113, 78, 0.4);
+    } else if (car.specialProperty === "Hidden Compartment") {
+        car.color = rgb(255, 215, 0, 0.3);
+    } else if (car.specialProperty === "Complex Interior") {
+        car.color = rgb(128, 0, 255, 0.3);
+    } else if (car.specialProperty === "VIP Owner") {
+        car.color = rgb(0, 255, 255, 0.3);
+    } else if (car.specialProperty === "Suspicious") {
+        car.color = rgb(255, 0, 0, 0.3);
+    }
+
+    if (playerStats.xrayVision) {
+        car.add([
+            text(car.specialProperty, {
+                size: 14,
+                width: 100,
+                align: "center"
+            }),
+            pos(0, -60),
+            anchor("center"),
+            color(255, 255, 0),
+            outline(2, rgb(0, 0, 0)),
+            z(10)
+        ]);
+    }
+}
+
+function createCarInSpot(spot, carType, options = {}) {
+    const {
+        level = currentLevel,
+        allowSpecialProperty = true,
+        arrivedLate = false,
+    } = options;
+
+    const carWidth = spot.orientation === 'vertical' ? carType.width : carType.height;
+    const carHeight = spot.orientation === 'vertical' ? carType.height : carType.width;
+    const offsetX = Math.random() * 10 - 5;
+    const offsetY = Math.random() * 10 - 5;
+    const centerX = spot.x + (PARKING_SPOT_WIDTH / 2) + offsetX;
+    const centerY = spot.y + PARKING_SPOT_CENTER_OFFSET_Y + offsetY;
+    const scaleX = carWidth / 300;
+    const scaleY = carHeight / 450;
+    const shouldFlip = Math.random() > 0.5;
+
+    const car = add([
+        getCarSpriteComponent(carType.spriteName, "base"),
+        pos(centerX, centerY),
+        anchor("center"),
+        scale(scaleX * 1, scaleY * (shouldFlip ? -1 : 1)),
+        area({ scale: getCarCollisionScale(carType.spriteName) }),
+        body({ isStatic: true }),
+        "car",
+        {
+            carData: carType,
+            spotId: spot.id,
+            interacted: false,
+            isPriorityCustomer: false,
+            priorityRewardClaimed: false,
+            orientation: spot.orientation,
+            specialProperty: null,
+            arrivedLate,
+        }
+    ]);
+
+    car.completed = false;
+    car.state = 'idle';
+
+    const needsCleaning = Math.random() < 0.5;
+    car.needsCleaning = needsCleaning;
+    car.needsVacuumOrSearch = !needsCleaning;
+
+    if (car.needsCleaning) {
+        car.use(getCarSpriteComponent(carType.spriteName, "dirty"));
+    } else {
+        car.use(getCarSpriteComponent(carType.spriteName, "vacuum"));
+    }
+
+    spot.occupied = true;
+
+    if (allowSpecialProperty) {
+        applySpecialPropertyToCar(car, level);
+    }
+
+    return car;
 }
 
 /**
@@ -2200,8 +2342,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     carsInLevel = [];
 
-    resetParkingSpots();
-
     // Reset event for this level
     currentEvent = null;
     currentEventState = {};
@@ -2223,6 +2363,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         });
     }
 
+    currentParkingLayout = generateParkingLayout(currentLevel, extraCarsThisLevel);
+    parkingSpots = currentParkingLayout.spots;
+    resetParkingSpots();
+
     // Time decreases by 5 seconds per level, with a minimum of 30 seconds
 
     timeLeft = Math.max(
@@ -2238,7 +2382,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
-        objectiveSummary: getObjectiveSummary(),
+        objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
@@ -2267,7 +2411,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
-        objectiveSummary: getObjectiveSummary(),
+        objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
@@ -2442,7 +2586,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     // --- Car Spawning ---
 
-    const requestedCars = 5 + currentLevel * 2 + extraCarsThisLevel; // Increase cars per level + event bonus
+    const requestedCars = getRequiredParkingSpotCount(currentLevel, extraCarsThisLevel); // Increase cars per level + event bonus
 
     const availableSpots = parkingSpots.filter(spot => !spot.occupied);
 
@@ -2467,125 +2611,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     for (let i = 0; i < numberOfCars; i++) {
 
         const spot = shuffledSpots[i];
-
-
-
-        // Select a random car type using weighted selection based on level
-
         const selectedType = getRandomCarType(currentLevel);
-
-
-
-        // Determine car dimensions based on orientation
-
-        // For vertical spots, we'll swap width and height
-
-        const carWidth = spot.orientation === 'vertical' ? selectedType.width : selectedType.height;
-
-        const carHeight = spot.orientation === 'vertical' ? selectedType.height : selectedType.width;
-
-
-
-        // Calculate position to center the car in the parking spot
-
-        // Each parking spot is approximately 120px wide with white lines as boundaries
-
-        const spotWidth = 120;
-
-        const spotHeight = 180; // Taller for vertical spots
-
-
-
-        // Add slight random offset to simulate imperfect parking (±5 pixels)
-
-        const offsetX = Math.random() * 10 - 5;
-
-        const offsetY = Math.random() * 10 - 5;
-
-
-
-        // Center the car in the spot with slight random offset
-
-        const centerX = spot.x + (spotWidth / 2) + offsetX;
-
-        const centerY = spot.y + 90 + offsetY;
-
-
-
-        // Calculate scale factor to fit the sprite in the parking spot
-
-        // Original sprites are 300x450, we want to scale them down to fit our desired dimensions
-
-        const scaleX = carWidth / 300;
-
-        const scaleY = carHeight / 450;
-
-
-
-        // Randomly determine if the car should be flipped (facing up or down)
-
-        // This simulates some cars backing into spaces
-
-        const shouldFlip = Math.random() > 0.5;
-
-
-
-        const car = add([
-
-            getCarSpriteComponent(selectedType.spriteName, "base"), // Use the car's sprite
-
-            pos(centerX, centerY),
-
-            anchor("center"), // Center the car in the parking spot
-
-            scale(scaleX * 1, scaleY * (shouldFlip ? -1 : 1)), // Flip by using negative scale for Y
-
-            area({ scale: getCarCollisionScale(selectedType.spriteName) }), // Tighten collision for padded sprite sheets
-
-            body({ isStatic: true }), // Make cars static physics bodies
-
-            "car", // Tag for identifying cars
-
-            { // Custom properties stored on the car game object
-
-                carData: selectedType,
-
-                spotId: spot.id,
-
-                interacted: false,
-
-                isPriorityCustomer: false,
-
-                priorityRewardClaimed: false,
-
-                orientation: spot.orientation,
-
-                specialProperty: null, // Initialize special property
-
-            }
-
-        ]);
-// --- Initialize Car State Properties ---
-        car.completed = false; // Track whether this car has been serviced
-        car.state = 'idle'; // Initial state
-
-        // --- Set Car State (only two possible states) ---
-        const needsCleaning = Math.random() < 0.5; // 50% chance needs cleaning
-        
-        // Set the car state to either "needs cleaning" or "needs vacuum/searching"
-        car.needsCleaning = needsCleaning;
-        car.needsVacuumOrSearch = !needsCleaning;
-        
-        // --- Update sprite based on state ---
-        const carType = car.carData.spriteName; // 'sedan' or 'sportscar'
-        
-        if (car.needsCleaning) {
-            // Use dirty sprite
-            car.use(getCarSpriteComponent(carType, "dirty"));
-        } else if (car.needsVacuumOrSearch) {
-            // Use vacuum/search sprite
-            car.use(getCarSpriteComponent(carType, "vacuum"));
-        }
+        const car = createCarInSpot(spot, selectedType, { level: currentLevel });
         // --- End State Setting ---
         
         // --- Add state text overlay for testing (commented out) ---
@@ -2605,66 +2632,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         */
 
         carsInLevel.push(car);
-
-        spot.occupied = true; // Mark the spot as occupied
-
-
-
-        // --- Assign Special Property (Increasing chance with level) ---
-
-        const specialChance = CONFIG.SPECIAL_PROPERTY_BASE_CHANCE + (currentLevel * CONFIG.SPECIAL_PROPERTY_LEVEL_INCREASE);
-
-        if (Math.random() < specialChance) {
-
-            // More special properties unlock at higher levels
-            let possibleProperties = ["Extra Dirty", "Hidden Compartment"];
-            
-            if (currentLevel >= 3) {
-                possibleProperties.push("Complex Interior"); // Takes longer to vacuum
-            }
-            if (currentLevel >= 5) {
-                possibleProperties.push("VIP Owner"); // Higher rewards, no alarm risk
-            }
-            if (currentLevel >= 7) {
-                possibleProperties.push("Suspicious"); // Higher alarm chance, better loot
-            }
-
-
-
-            car.specialProperty = choose(possibleProperties);
-
-            console.log(`Car in spot ${spot.id} is special: ${car.specialProperty}`);
-
-            // Visual indicator for special cars
-            if (car.specialProperty === "Extra Dirty") {
-                car.color = rgb(165, 113, 78, 0.4); // Brown tint
-            } else if (car.specialProperty === "Hidden Compartment") {
-                car.color = rgb(255, 215, 0, 0.3); // Gold tint
-            } else if (car.specialProperty === "Complex Interior") {
-                car.color = rgb(128, 0, 255, 0.3); // Purple tint
-            } else if (car.specialProperty === "VIP Owner") {
-                car.color = rgb(0, 255, 255, 0.3); // Cyan tint
-            } else if (car.specialProperty === "Suspicious") {
-                car.color = rgb(255, 0, 0, 0.3); // Red tint
-            }
-            
-            // X-Ray Goggles: Show special property text
-            if (playerStats.xrayVision) {
-                car.add([
-                    text(car.specialProperty, {
-                        size: 14,
-                        width: 100,
-                        align: "center"
-                    }),
-                    pos(0, -60),
-                    anchor("center"),
-                    color(255, 255, 0),
-                    outline(2, rgb(0, 0, 0)),
-                    z(10)
-                ]);
-            }
-
-        }
 
     }
 
@@ -2690,7 +2657,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         });
     }
 
-    console.log(`Level ${currentLevel}: Spawned ${carsInLevel.length} cars.`);
+    console.log(`Level ${currentLevel}: Spawned ${carsInLevel.length} cars using layout ${getParkingLayoutSummary()}.`);
 
 
 
@@ -2725,7 +2692,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 timer: timeLeft,
                 eventName: currentEventState.name || "None",
                 eventSummary: getEventSummary(currentEventState),
-                objectiveSummary: getObjectiveSummary(),
+                objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
                 upgrades: playerUpgrades,
                 buffs: currentBuffs.map((buff) => buff.name),
                 runState: getRunStateLabel(),
@@ -3178,7 +3145,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
             timer: timeLeft,
             eventName: currentEventState.name || "None",
             eventSummary: getEventSummary(currentEventState),
-            objectiveSummary: getObjectiveSummary(),
+            objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
             upgrades: playerUpgrades,
             buffs: currentBuffs.map((buff) => buff.name),
             runState: `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} in progress`,
@@ -3764,50 +3731,12 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         for (let i = 0; i < spawnCount; i++) {
             const spot = shuffledOpenSpots[i];
             const arrivingType = getRandomCarType(currentLevel + 1);
-            const carWidth = spot.orientation === 'vertical' ? arrivingType.width : arrivingType.height;
-            const carHeight = spot.orientation === 'vertical' ? arrivingType.height : arrivingType.width;
-            const spotWidth = 120;
-            const offsetX = Math.random() * 10 - 5;
-            const offsetY = Math.random() * 10 - 5;
-            const centerX = spot.x + (spotWidth / 2) + offsetX;
-            const centerY = spot.y + 90 + offsetY;
-            const scaleX = carWidth / 300;
-            const scaleY = carHeight / 450;
-            const shouldFlip = Math.random() > 0.5;
-
-            const arrivingCar = add([
-                getCarSpriteComponent(arrivingType.spriteName, "base"),
-                pos(centerX, centerY),
-                anchor("center"),
-                scale(scaleX * 1, scaleY * (shouldFlip ? -1 : 1)),
-                area({ scale: getCarCollisionScale(arrivingType.spriteName) }),
-                body({ isStatic: true }),
-                "car",
-                {
-                    carData: arrivingType,
-                    spotId: spot.id,
-                    interacted: false,
-                    isPriorityCustomer: false,
-                    priorityRewardClaimed: false,
-                    orientation: spot.orientation,
-                    specialProperty: null,
-                    arrivedLate: true,
-                }
-            ]);
-
-            arrivingCar.completed = false;
-            arrivingCar.state = 'idle';
-            const needsCleaning = Math.random() < 0.5;
-            arrivingCar.needsCleaning = needsCleaning;
-            arrivingCar.needsVacuumOrSearch = !needsCleaning;
-            if (arrivingCar.needsCleaning) {
-                arrivingCar.use(getCarSpriteComponent(arrivingType.spriteName, "dirty"));
-            } else {
-                arrivingCar.use(getCarSpriteComponent(arrivingType.spriteName, "vacuum"));
-            }
+            const arrivingCar = createCarInSpot(spot, arrivingType, {
+                level: currentLevel + 1,
+                arrivedLate: true,
+            });
 
             carsInLevel.push(arrivingCar);
-            spot.occupied = true;
         }
 
         currentEventState.rushHourCarsRemaining -= spawnCount;
@@ -3830,11 +3759,11 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
-        objectiveSummary: getObjectiveSummary(),
+        objectiveSummary: `${getObjectiveSummary()} - ${getParkingLayoutSummary()}`,
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: getRunStateLabel(),
-        announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}`,
+        announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`,
     });
 
     

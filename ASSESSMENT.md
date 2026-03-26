@@ -7,7 +7,7 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 ## Executive Summary
 
 - Recent fixes resolved the main gameplay-flow defects called out in earlier revisions, including one-action car interactions, random event effects, save-data normalization, run completion handling, and browser dependency integrity.
-- The main remaining risks are design and product gaps rather than immediate breakage: progression is still fully client-trusted, the parking lot layout remains static, and several higher-level roguelite systems are only partially implemented.
+- The main remaining risks are design and product gaps rather than immediate breakage: progression is still fully client-trusted, and several higher-level roguelite systems are only partially implemented.
 - The game now covers the core loop more reliably, with leveling, random events, persistent upgrades, temporary buffs, and character unlocks in place, but it still falls short of the fuller variety and replayability described in the design documents.
 
 ## High-Priority Code Issues
@@ -23,12 +23,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - If the project later exposes leaderboards or achievements, current saved data must be treated as untrusted.
 
 ## Missing or Partial Features Compared to the Design Documents
-
-### 1. Car park layouts are not procedurally generated
-
-- The design calls for randomized car park layouts in `Roguelike Design.md:8` through `Roguelike Design.md:10`.
-- The implementation uses a fixed hard-coded parking grid in `game.js:197` through `game.js:235`.
-- Only car placement order and car type selection vary.
 
 ### 6. Narrative and rival/boss systems are absent
 
