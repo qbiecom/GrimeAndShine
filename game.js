@@ -18,7 +18,7 @@ kaboom({
 
 // Load custom font
 
-loadFont("arcadia", "Art/Arcadia-Regular.woff");
+loadFont("arcadia", "art/Arcadia-Regular.woff");
 
 
 
@@ -159,6 +159,12 @@ const carTypes = [
  * Higher levels have better chances for rare cars
  */
 function getRandomCarType(level) {
+    const availableCarTypes = carTypes.filter((car) => CAR_SHEET_CONFIG[car.spriteName]);
+
+    if (availableCarTypes.length === 0) {
+        throw new Error("No car sprite sheets are configured.");
+    }
+
     // Rarity weights that improve with level
     const baseWeights = {
         common: 60,
@@ -176,7 +182,7 @@ function getRandomCarType(level) {
     
     // Build weighted pool
     const pool = [];
-    carTypes.forEach(car => {
+    availableCarTypes.forEach(car => {
         const weight = weights[car.rarity] || 10;
         for (let i = 0; i < weight; i++) {
             pool.push(car);
@@ -188,7 +194,7 @@ function getRandomCarType(level) {
 
 
 
-// Parking Spot Definitions based on Art/backgroundv1.png (1280x720)
+// Parking Spot Definitions based on art/backgroundv1.png (1280x720)
 
 // Coordinates are approximate top-left corners for vertical spots.
 
@@ -491,55 +497,44 @@ function persistSelectedCharacter(characterId) {
 
 // --- Load Assets ---
 
-loadSprite("background", "Art/backgroundv1.png"); // Use absolute path
+const CAR_SHEET_CONFIG = {
+    sedan: "cars/compact_sedan.png",
+    sportscar: "cars/sportscar.png",
+    suv: "cars/suv.png",
+    junker: "cars/junker.png",
+    van: "cars/van.png",
+    pickup: "cars/pickup.png",
+};
 
-// Load sedan sprites for different states
-loadSprite("sedan", "Art/sedan.png"); // Neutral state
-loadSprite("sedan_clean", "Art/sedan_clean.png");
-loadSprite("sedan_dirty", "Art/sedan_dirty.png");
-loadSprite("sedan_vacuum", "Art/sedan_vacuum.png");
+const CAR_STATE_FRAMES = {
+    base: 0,
+    dirty: 1,
+    clean: 2,
+    vacuum: 3,
+};
 
-// Load sportscar sprites for different states
-loadSprite("sportscar", "Art/sportscar.png"); // Neutral state
-loadSprite("sportscar_clean", "Art/sportscar_clean.png");
-loadSprite("sportscar_dirty", "Art/sportscar_dirty.png");
-loadSprite("sportscar_vacuum", "Art/sportscar_vacuum.png");
+function getCarSpriteComponent(carType, state = "base") {
+    return sprite(`${carType}_sheet`, {
+        frame: CAR_STATE_FRAMES[state] ?? CAR_STATE_FRAMES.base,
+    });
+}
 
-loadSprite("van", "Art/van.png");
+function getCarCollisionScale(carType) {
+    return 0.62;
+}
 
-loadSprite("junker", "Art/junker.png");
+loadSprite("background", "art/backgroundv1.png"); // Use absolute path
 
-loadSprite("luxury", "Art/luxury.png");
+Object.entries(CAR_SHEET_CONFIG).forEach(([carType, path]) => {
+    loadSprite(`${carType}_sheet`, path, {
+        sliceX: 2,
+        sliceY: 2,
+    });
+});
 
-loadSprite("suv", "Art/suv.png");
+loadSprite("player", "art/player_temp.png");
 
-loadSprite("pickup", "Art/pickup.png");
-
-loadSprite("compact", "Art/compact.png");
-
-// Fallback state sprites for car types that only have a base asset.
-loadSprite("van_clean", "Art/van.png");
-loadSprite("van_dirty", "Art/van.png");
-loadSprite("van_vacuum", "Art/van.png");
-loadSprite("junker_clean", "Art/junker.png");
-loadSprite("junker_dirty", "Art/junker.png");
-loadSprite("junker_vacuum", "Art/junker.png");
-loadSprite("luxury_clean", "Art/luxury.png");
-loadSprite("luxury_dirty", "Art/luxury.png");
-loadSprite("luxury_vacuum", "Art/luxury.png");
-loadSprite("suv_clean", "Art/suv.png");
-loadSprite("suv_dirty", "Art/suv.png");
-loadSprite("suv_vacuum", "Art/suv.png");
-loadSprite("pickup_clean", "Art/pickup.png");
-loadSprite("pickup_dirty", "Art/pickup.png");
-loadSprite("pickup_vacuum", "Art/pickup.png");
-loadSprite("compact_clean", "Art/compact.png");
-loadSprite("compact_dirty", "Art/compact.png");
-loadSprite("compact_vacuum", "Art/compact.png");
-
-loadSprite("player", "Art/player_temp.png");
-
-loadSprite("titleLogo", "Art/title.png"); // Load the title logo
+loadSprite("titleLogo", "art/title.png"); // Load the title logo
 
 
 
@@ -2141,7 +2136,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         const car = add([
 
-            sprite(selectedType.spriteName), // Use the car's sprite
+            getCarSpriteComponent(selectedType.spriteName, "base"), // Use the car's sprite
 
             pos(centerX, centerY),
 
@@ -2149,7 +2144,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
             scale(scaleX * 1, scaleY * (shouldFlip ? -1 : 1)), // Flip by using negative scale for Y
 
-            area({ scale: 0.9 }), // Collision area for the car
+            area({ scale: getCarCollisionScale(selectedType.spriteName) }), // Tighten collision for padded sprite sheets
 
             body({ isStatic: true }), // Make cars static physics bodies
 
@@ -2186,10 +2181,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         
         if (car.needsCleaning) {
             // Use dirty sprite
-            car.use(sprite(`${carType}_dirty`));
+            car.use(getCarSpriteComponent(carType, "dirty"));
         } else if (car.needsVacuumOrSearch) {
             // Use vacuum/search sprite
-            car.use(sprite(`${carType}_vacuum`));
+            car.use(getCarSpriteComponent(carType, "vacuum"));
         }
         // --- End State Setting ---
         
@@ -2911,7 +2906,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 car.opacity = 0.5; // Reduce opacity to show the car has been interacted with
 // Update sprite to show completed state
                 const carType = car.carData.spriteName; // 'sedan' or 'sportscar'
-                car.use(sprite(`${carType}_clean`)); // Use clean sprite for completed cars
+                car.use(getCarSpriteComponent(carType, "clean")); // Use clean sprite for completed cars
                 
                 // Update the state text overlay to show completed (commented out)
                 /*

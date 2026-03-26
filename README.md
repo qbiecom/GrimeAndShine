@@ -1,6 +1,6 @@
 # Grime and Shine
 
-![Grime and Shine Title](Art/title.png)
+![Grime and Shine Title](art/title.png)
 
 Grime and Shine is a browser-based, vehicle-themed **roguelike** game. Players take on the role of a car cleaner in a busy parking lot, aiming to service as many cars as possible within the time limit while earning cash and upgrading their abilities across increasingly challenging levels.
 
@@ -44,7 +44,7 @@ To play the game:
 ├── index.html          # Main HTML file
 ├── style.css           # Stylesheet
 ├── game.js             # Game logic in JavaScript
-├── Art/                # Game assets (images, fonts)
+├── art/                # Game assets (images, fonts)
 │   ├── *.png
 │   └── *.woff
 └── README.md           # Project documentation
