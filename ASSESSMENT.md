@@ -36,12 +36,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - The implementation uses a fixed hard-coded parking grid in `game.js:197` through `game.js:235`.
 - Only car placement order and car type selection vary.
 
-### 3. Roguelike "one action per car" is undermined by current and planned logic
-
-- The design emphasizes one strategic action per car in `Roguelike Design.md:11` through `Roguelike Design.md:16`.
-- Current input already allows invalid off-menu actions as described earlier.
-- The `Multitasker` upgrade in `game.js:1525` through `game.js:1530` explicitly promises all three actions on one car, which changes a core rule rather than extending it carefully.
-
 ### 4. Permanent upgrade system is narrower than the design vision
 
 - The design mentions unlocking broader tool types and abilities such as steam cleaners, leaf blowers, time extensions, and rare-item boosts in `Roguelike Design.md:33` through `Roguelike Design.md:47`.

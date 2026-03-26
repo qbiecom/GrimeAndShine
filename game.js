@@ -1646,7 +1646,7 @@ const availableUpgrades = [
     {
         id: "steamcleaner",
         name: "Steam Cleaner",
-        description: "Cleaning also vacuums the car (2-in-1 action).",
+        description: "Clean actions also pay an interior-service bonus.",
         rarity: "rare",
         color: rgb(128, 0, 255),
         effect: () => { playerStats.steamCleanerActive = true; }
@@ -1654,7 +1654,7 @@ const availableUpgrades = [
     {
         id: "magnetvac",
         name: "Magnetic Vacuum",
-        description: "Vacuuming also searches for loose change.",
+        description: "Vacuum actions pull in extra loose change.",
         rarity: "rare",
         color: rgb(128, 0, 255),
         effect: () => { playerStats.magnetVacActive = true; }
@@ -1670,10 +1670,10 @@ const availableUpgrades = [
     {
         id: "multitask",
         name: "Multitasker",
-        description: "Perform all 3 actions on a car (takes 2x time, 3x rewards).",
+        description: "Your chosen action pays double rewards on the serviced car.",
         rarity: "legendary",
         color: rgb(255, 215, 0),
-        effect: () => { playerStats.multitaskActive = true; }
+        effect: () => { playerStats.multitaskCashMultiplier = (playerStats.multitaskCashMultiplier || 1) * 2; }
     },
     {
         id: "efficiency",
@@ -3193,6 +3193,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                             lootAmount = Math.floor(lootAmount * 1.4); // 40% more loot
                         }
 
+                        if (playerStats.multitaskCashMultiplier) {
+                            lootAmount = Math.round(lootAmount * playerStats.multitaskCashMultiplier);
+                        }
+
                         currentCash += lootAmount;
 
                         markUIDirty('cash');
@@ -3223,13 +3227,19 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                         const cash = Math.round(baseCash * modifier * (car.carData.cashMultiplier || 1));
 
-                        currentCash += cash;
+                        let totalCash = cash;
+
+                        if (playerStats.multitaskCashMultiplier) {
+                            totalCash = Math.round(totalCash * playerStats.multitaskCashMultiplier);
+                        }
+
+                        currentCash += totalCash;
 
                         markUIDirty('cash');
 
                         console.log("Found nothing special.");
 
-                        showFeedback(`Searched. +$${cash}`, rgb(200, 200, 200)); // Gray for neutral
+                        showFeedback(`Searched. +$${totalCash}`, rgb(200, 200, 200)); // Gray for neutral
 
                     }
 
@@ -3280,16 +3290,21 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
                     const cash = Math.round(baseCash * modifier * (car.carData.cashMultiplier || 1)); // Apply car type cash multiplier
+                    let totalCash = cash;
 
-                    currentCash += cash;
+                    if (playerStats.multitaskCashMultiplier) {
+                        totalCash = Math.round(totalCash * playerStats.multitaskCashMultiplier);
+                    }
+
+                    currentCash += totalCash;
 
                     markUIDirty('cash');
 
 
 
-                    console.log(`Cleaned car. +$${cash}`);
+                    console.log(`Cleaned car. +$${totalCash}`);
 
-                    let feedbackMsg = `Cleaned! +$${cash}`;
+                    let feedbackMsg = `Cleaned! +$${totalCash}`;
 
                     if (car.specialProperty === "Extra Dirty") {
 
@@ -3299,12 +3314,12 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                     showFeedback(feedbackMsg, rgb(0, 180, 255)); // Blue for clean
                     
-                    // Steam Cleaner: Cleaning also vacuums
+                    // Steam Cleaner: cleaning gains a bundled interior-service bonus
                     if (playerStats.steamCleanerActive && car.needsVacuumOrSearch) {
                         const vacuumCash = Math.round(15 * modifier * (car.carData.cashMultiplier || 1));
                         currentCash += vacuumCash;
                         markUIDirty('cash');
-                        console.log(`Steam Cleaner bonus: +$${vacuumCash} from auto-vacuum`);
+                        console.log(`Steam Cleaner bonus: +$${vacuumCash} interior-service bonus`);
                         wait(0.5, () => {
                             showFeedback(`Steam Bonus! +$${vacuumCash}`, rgb(150, 200, 255));
                         });
@@ -3329,21 +3344,26 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                     }
 
                     const cash = Math.round(baseCash * modifier * (car.carData.cashMultiplier || 1));
+                    let totalCash = cash;
 
-                    currentCash += cash;
+                    if (playerStats.multitaskCashMultiplier) {
+                        totalCash = Math.round(totalCash * playerStats.multitaskCashMultiplier);
+                    }
+
+                    currentCash += totalCash;
 
                     markUIDirty('cash');
 
-                    let vacuumMsg = `Vacuumed! +$${cash}`;
+                    let vacuumMsg = `Vacuumed! +$${totalCash}`;
                     if (car.specialProperty === "Complex Interior") {
                         vacuumMsg += " (Complex!)";
                     }
 
-                    console.log(`Vacuumed car. +$${cash}`);
+                    console.log(`Vacuumed car. +$${totalCash}`);
 
                     showFeedback(vacuumMsg, rgb(200, 0, 255)); // Purple for vacuum
                     
-                    // Magnetic Vacuum: Vacuuming also searches for loose change
+                    // Magnetic Vacuum: vacuuming gains a bundled loose-change bonus
                     if (playerStats.magnetVacActive) {
                         const bonusCash = Math.floor((Math.random() * 10 + 5) * (car.carData.cashMultiplier || 1));
                         currentCash += bonusCash;
