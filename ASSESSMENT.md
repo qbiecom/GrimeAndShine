@@ -30,12 +30,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - The implementation uses a fixed hard-coded parking grid in `game.js:197` through `game.js:235`.
 - Only car placement order and car type selection vary.
 
-### 5. Difficulty scaling is present, but challenge variety is still shallow
-
-- The game does reduce time and add more cars in `game.js:1786` through `game.js:1799` and `game.js:1993` through `game.js:1997`.
-- Special properties also expand by level in `game.js:2157` through `game.js:2174`.
-- Missing pieces include more varied layouts, stronger event mechanics, arrival pressure, boss/rival encounters, and higher-level objective variation described in `Roguelike Design.md:49` through `Roguelike Design.md:62`.
-
 ### 6. Narrative and rival/boss systems are absent
 
 - The narrative layer and rival valet ideas from `Roguelike Design.md:58` through `Roguelike Design.md:62` are not represented in `game.js`.

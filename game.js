@@ -1102,13 +1102,13 @@ scene("rules", () => {
 
         "• Each action earns you cash.",
 
-        "• Complete a level by servicing all cars or when time runs out.",
+        "• Each level rolls an objective, such as clean jobs or interior jobs, shown in the HUD.",
 
-        "• If time runs out, you need to have serviced at least 50% of cars.",
+        "• Complete the level by hitting the objective target, or survive to the buzzer with enough serviced cars to satisfy that target.",
 
         "• After each level, choose an upgrade to improve your skills.",
 
-        "• The time limit decreases with each level, making the game more challenging."
+        "• Rush Hour can add late arrivals mid-level, so unfinished lanes can get busier over time."
 
     ];
 
@@ -1406,6 +1406,7 @@ const hudElements = {
     level: document.getElementById("hud-level"),
     timer: document.getElementById("hud-timer"),
     event: document.getElementById("hud-event"),
+    objective: document.getElementById("hud-objective"),
     upgrades: document.getElementById("hud-upgrades"),
     upgradesEmpty: document.getElementById("hud-upgrades-empty"),
     buffs: document.getElementById("hud-buffs"),
@@ -1453,6 +1454,7 @@ function updateRunHUD(options = {}) {
         timer = null,
         eventName = "None",
         eventSummary = "",
+        objectiveSummary = "",
         upgrades = [],
         buffs = [],
         runState = inRun ? "Run active" : "Run inactive",
@@ -1469,6 +1471,7 @@ function updateRunHUD(options = {}) {
         ? (eventSummary ? `${eventName}: ${eventSummary}` : eventName)
         : "None";
     setTextContent(hudElements.event, eventLabel);
+    setTextContent(hudElements.objective, inRun ? objectiveSummary || "No active objective" : "No active objective");
 
     setStatusList(hudElements.upgrades, hudElements.upgradesEmpty, inRun ? upgrades : [], "No upgrades active.");
     setStatusList(hudElements.buffs, hudElements.buffsEmpty, inRun ? buffs : [], "No buffs active.");
@@ -1620,13 +1623,20 @@ const levelEvents = [
 
         name: "Rush Hour",
 
-        description: "Rush hour! Three extra cars arrive and the clock starts 5 seconds lower.",
+        description: "Rush hour! The clock starts 5 seconds lower, extra cars are added, and more arrivals trickle in mid-level.",
 
         apply: () => {
             extraCarsThisLevel += 3;
             return {
+                name: "Rush Hour",
                 rushHour: true,
+                extraCars: 3,
                 timePenalty: 5,
+                arrivalPressure: true,
+                rushHourCarsRemaining: 2,
+                rushHourWaveSize: 1,
+                arrivalInterval: 12,
+                arrivalSeconds: 12,
             };
         }
 
@@ -1657,11 +1667,112 @@ let currentEvent = null;
 
 let currentEventState = {};
 
+let currentLevelObjective = null;
+
 
 
 // Extra cars added by events
 
 let extraCarsThisLevel = 0;
+
+const levelObjectives = [
+    {
+        id: "any-service",
+        name: "Keep the Line Moving",
+        description: "Service enough cars before the clock runs out.",
+        summary: ({ requiredCount, progressCount }) => `Service ${progressCount}/${requiredCount} cars before time runs out.`,
+        isCarEligible: () => true,
+        getProgressCount: (cars) => cars.filter((car) => car.completed).length,
+        shouldCompleteLevel: ({ cars, requiredCount }) => cars.filter((car) => car.completed).length >= requiredCount,
+    },
+    {
+        id: "clean-focus",
+        name: "Exterior Detail Sweep",
+        description: "Finish enough clean jobs this level.",
+        summary: ({ requiredCount, progressCount }) => `Complete ${progressCount}/${requiredCount} clean jobs to clear the level.`,
+        isCarEligible: (car) => car.needsCleaning,
+        getProgressCount: (cars) => cars.filter((car) => car.completed && car.completedAction === "clean").length,
+        shouldCompleteLevel: ({ cars, requiredCount }) => cars.filter((car) => car.completed && car.completedAction === "clean").length >= requiredCount,
+    },
+    {
+        id: "interior-focus",
+        name: "Interior Pickup",
+        description: "Finish enough search or vacuum jobs this level.",
+        summary: ({ requiredCount, progressCount }) => `Complete ${progressCount}/${requiredCount} interior jobs (search or vacuum).`,
+        isCarEligible: (car) => car.needsVacuumOrSearch,
+        getProgressCount: (cars) => cars.filter((car) => car.completed && (car.completedAction === "search" || car.completedAction === "vacuum")).length,
+        shouldCompleteLevel: ({ cars, requiredCount }) => cars.filter((car) => car.completed && (car.completedAction === "search" || car.completedAction === "vacuum")).length >= requiredCount,
+    },
+];
+
+function calculateObjectiveRequirement(level, eligibleCount) {
+    if (eligibleCount <= 0) {
+        return 0;
+    }
+
+    const pressureTarget = Math.min(eligibleCount, 3 + Math.floor(level / 2));
+    const ratioTarget = Math.ceil(eligibleCount * 0.6);
+    return Math.max(1, Math.min(eligibleCount, Math.max(pressureTarget, ratioTarget)));
+}
+
+function createLevelObjective(level, cars) {
+    const weightedPool = levelObjectives.filter((objective) => cars.some((car) => objective.isCarEligible(car)));
+    const selectedObjective = choose(weightedPool.length > 0 ? weightedPool : [levelObjectives[0]]);
+    const eligibleCount = cars.filter((car) => selectedObjective.isCarEligible(car)).length;
+    const requiredCount = calculateObjectiveRequirement(level, eligibleCount);
+
+    return {
+        id: selectedObjective.id,
+        name: selectedObjective.name,
+        description: selectedObjective.description,
+        requiredCount,
+        eligibleCount,
+        getProgressCount: () => selectedObjective.getProgressCount(cars),
+        shouldCompleteLevel: () => selectedObjective.shouldCompleteLevel({ cars, requiredCount }),
+        getSummary: () => selectedObjective.summary({
+            requiredCount,
+            eligibleCount,
+            progressCount: selectedObjective.getProgressCount(cars),
+        }),
+    };
+}
+
+function getObjectiveSummary() {
+    return currentLevelObjective ? currentLevelObjective.getSummary() : "No active objective";
+}
+
+function getRequiredCompletionRatio() {
+    if (!currentLevelObjective || currentLevelObjective.requiredCount <= 0 || carsInLevel.length === 0) {
+        return CONFIG.LEVEL_COMPLETE_THRESHOLD;
+    }
+
+    return Math.max(CONFIG.LEVEL_COMPLETE_THRESHOLD, currentLevelObjective.requiredCount / carsInLevel.length);
+}
+
+function getArrivalPressureLabel() {
+    if (currentEventState.rushHourWaveSize > 0 && currentEventState.arrivalSeconds > 0) {
+        return `Next arrival in ${currentEventState.arrivalSeconds}s (${currentEventState.rushHourCarsRemaining} incoming)`;
+    }
+
+    if (currentEventState.rushHourCarsRemaining > 0) {
+        return `${currentEventState.rushHourCarsRemaining} more rush-hour arrivals queued`;
+    }
+
+    return currentEventState.arrivalPressure ? "Rush-hour arrivals exhausted" : "";
+}
+
+function getRunStateLabel() {
+    if (actionInProgress) {
+        return "Action in progress";
+    }
+
+    const arrivalLabel = getArrivalPressureLabel();
+    if (arrivalLabel) {
+        return arrivalLabel;
+    }
+
+    return `Level ${currentLevel} active`;
+}
 
 
 
@@ -2055,6 +2166,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         level: currentLevel,
         timer: timeLeft,
         eventName: "None",
+        objectiveSummary: "Rolling level setup...",
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Loading level ${currentLevel}`,
@@ -2093,6 +2205,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     // Reset event for this level
     currentEvent = null;
     currentEventState = {};
+    currentLevelObjective = null;
     extraCarsThisLevel = 0;
 
     // Apply random event (30% chance)
@@ -2125,6 +2238,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
+        objectiveSummary: getObjectiveSummary(),
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
@@ -2153,6 +2267,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         timer: timeLeft,
         eventName: currentEventState.name || "None",
         eventSummary: getEventSummary(currentEventState),
+        objectiveSummary: getObjectiveSummary(),
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
@@ -2610,9 +2725,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 timer: timeLeft,
                 eventName: currentEventState.name || "None",
                 eventSummary: getEventSummary(currentEventState),
+                objectiveSummary: getObjectiveSummary(),
                 upgrades: playerUpgrades,
                 buffs: currentBuffs.map((buff) => buff.name),
-                runState: actionInProgress ? "Action in progress" : `Level ${currentLevel} active`,
+                runState: getRunStateLabel(),
             });
 
             uiDirty.cash = false;
@@ -2691,6 +2807,13 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
             lastTick = time();
 
+            if (currentEventState.arrivalPressure && currentEventState.rushHourCarsRemaining > 0) {
+                currentEventState.arrivalSeconds = Math.max((currentEventState.arrivalSeconds || currentEventState.arrivalInterval || 12) - 1, 0);
+                if (currentEventState.arrivalSeconds === 0) {
+                    spawnRushHourArrival();
+                }
+            }
+
             
 
             // Mark timer as dirty instead of directly updating
@@ -2718,6 +2841,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 const totalCars = carsInLevel.length;
 
                 const completionPercentage = totalCars > 0 ? (completedCars / totalCars) * 100 : 0;
+                const requiredCompletionRatio = getRequiredCompletionRatio();
 
 
 
@@ -2727,7 +2851,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 // Level is complete if at least 50% of cars have been serviced
 
-                if (completionPercentage >= CONFIG.LEVEL_COMPLETE_THRESHOLD * 100) {
+                if (completionPercentage >= requiredCompletionRatio * 100) {
 
                     console.log(`Level ${currentLevel} complete! Advancing to upgrade screen.`);
 
@@ -2737,7 +2861,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 } else {
 
-                    console.log(`Level ${currentLevel} failed. Less than 50% of cars serviced.`);
+                    console.log(`Level ${currentLevel} failed. Did not reach the objective threshold before timeout.`);
 
                     // Go to game over, passing all relevant data
 
@@ -3054,6 +3178,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
             timer: timeLeft,
             eventName: currentEventState.name || "None",
             eventSummary: getEventSummary(currentEventState),
+            objectiveSummary: getObjectiveSummary(),
             upgrades: playerUpgrades,
             buffs: currentBuffs.map((buff) => buff.name),
             runState: `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} in progress`,
@@ -3138,6 +3263,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 car.completed = true;
                 car.interacted = true;
+                car.completedAction = actionType;
 
                 car.opacity = 0.5; // Reduce opacity to show the car has been serviced
 // Update sprite to show completed state
@@ -3575,17 +3701,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     function checkLevelComplete() {
 
-        // Count how many cars have been serviced
+        if (currentLevelObjective && currentLevelObjective.shouldCompleteLevel()) {
 
-        const completedCars = carsInLevel.filter(car => car.completed).length;
-
-        const totalCars = carsInLevel.length;
-
-        // Level is complete when ALL cars have been serviced
-
-        if (completedCars === totalCars) {
-
-            console.log(`Level ${currentLevel} complete! All cars serviced.`);
+            console.log(`Level ${currentLevel} complete! Objective cleared.`);
 
             if (timerInterval) clearInterval(timerInterval); // Stop timer immediately
 
@@ -3626,6 +3744,98 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     // Initialize the list
 
     updateNonInteractedCars();
+
+    currentLevelObjective = createLevelObjective(currentLevel, carsInLevel);
+
+    const spawnRushHourArrival = () => {
+        if (!currentEventState.arrivalPressure || currentEventState.rushHourCarsRemaining <= 0) {
+            return false;
+        }
+
+        const openSpots = parkingSpots.filter((spot) => !spot.occupied);
+        if (openSpots.length === 0) {
+            currentEventState.arrivalSeconds = currentEventState.arrivalInterval || 12;
+            return false;
+        }
+
+        const spawnCount = Math.min(currentEventState.rushHourWaveSize || 1, currentEventState.rushHourCarsRemaining, openSpots.length);
+        const shuffledOpenSpots = openSpots.slice().sort(() => 0.5 - Math.random());
+
+        for (let i = 0; i < spawnCount; i++) {
+            const spot = shuffledOpenSpots[i];
+            const arrivingType = getRandomCarType(currentLevel + 1);
+            const carWidth = spot.orientation === 'vertical' ? arrivingType.width : arrivingType.height;
+            const carHeight = spot.orientation === 'vertical' ? arrivingType.height : arrivingType.width;
+            const spotWidth = 120;
+            const offsetX = Math.random() * 10 - 5;
+            const offsetY = Math.random() * 10 - 5;
+            const centerX = spot.x + (spotWidth / 2) + offsetX;
+            const centerY = spot.y + 90 + offsetY;
+            const scaleX = carWidth / 300;
+            const scaleY = carHeight / 450;
+            const shouldFlip = Math.random() > 0.5;
+
+            const arrivingCar = add([
+                getCarSpriteComponent(arrivingType.spriteName, "base"),
+                pos(centerX, centerY),
+                anchor("center"),
+                scale(scaleX * 1, scaleY * (shouldFlip ? -1 : 1)),
+                area({ scale: getCarCollisionScale(arrivingType.spriteName) }),
+                body({ isStatic: true }),
+                "car",
+                {
+                    carData: arrivingType,
+                    spotId: spot.id,
+                    interacted: false,
+                    isPriorityCustomer: false,
+                    priorityRewardClaimed: false,
+                    orientation: spot.orientation,
+                    specialProperty: null,
+                    arrivedLate: true,
+                }
+            ]);
+
+            arrivingCar.completed = false;
+            arrivingCar.state = 'idle';
+            const needsCleaning = Math.random() < 0.5;
+            arrivingCar.needsCleaning = needsCleaning;
+            arrivingCar.needsVacuumOrSearch = !needsCleaning;
+            if (arrivingCar.needsCleaning) {
+                arrivingCar.use(getCarSpriteComponent(arrivingType.spriteName, "dirty"));
+            } else {
+                arrivingCar.use(getCarSpriteComponent(arrivingType.spriteName, "vacuum"));
+            }
+
+            carsInLevel.push(arrivingCar);
+            spot.occupied = true;
+        }
+
+        currentEventState.rushHourCarsRemaining -= spawnCount;
+        currentEventState.arrivalSeconds = currentEventState.rushHourCarsRemaining > 0
+            ? (currentEventState.arrivalInterval || 12)
+            : 0;
+        updateNonInteractedCars();
+        markUIDirty('timer');
+        updateUI(true);
+        showFeedback(`Rush Hour! ${spawnCount} new car${spawnCount === 1 ? '' : 's'} rolled in.`, rgb(255, 170, 60));
+        announceCanvasStatus(`Rush Hour arrival: ${spawnCount} new car${spawnCount === 1 ? '' : 's'} added.`);
+        return true;
+    };
+
+    updateRunHUD({
+        scene: "In Run",
+        inRun: true,
+        cash: currentCash,
+        level: currentLevel,
+        timer: timeLeft,
+        eventName: currentEventState.name || "None",
+        eventSummary: getEventSummary(currentEventState),
+        objectiveSummary: getObjectiveSummary(),
+        upgrades: playerUpgrades,
+        buffs: currentBuffs.map((buff) => buff.name),
+        runState: getRunStateLabel(),
+        announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}`,
+    });
 
     
 
