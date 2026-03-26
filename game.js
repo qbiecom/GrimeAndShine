@@ -295,6 +295,30 @@ function formatMultiplierAsPercent(multiplier, inverse = false) {
     return Math.round((multiplier - 1) * 100);
 }
 
+function showFeedback(message, color = rgb(255, 255, 255)) {
+    if (!feedbackTextObject || !feedbackTextObject.exists()) {
+        feedbackTextObject = add([
+            text("", { size: 18 }),
+            pos(center().x, 60),
+            anchor("center"),
+            z(300),
+            opacity(0),
+            fixed(),
+            "feedbackText",
+        ]);
+    }
+
+    feedbackTextObject.text = message;
+    feedbackTextObject.color = color;
+    feedbackTextObject.opacity = 1;
+
+    wait(1.5, () => {
+        if (feedbackTextObject && feedbackTextObject.exists()) {
+            feedbackTextObject.opacity = 0;
+        }
+    });
+}
+
 
 
 // --- Persistent Data Management (localStorage) ---
@@ -455,6 +479,15 @@ const SaveSystem = {
 
 // Initialize save data on game start
 let saveData = SaveSystem.load();
+let selectedCharacterId = saveData.settings?.selectedCharacter || "base";
+
+function persistSelectedCharacter(characterId) {
+    const data = SaveSystem.load();
+    data.settings = data.settings || {};
+    data.settings.selectedCharacter = characterId;
+    SaveSystem.save(data);
+    selectedCharacterId = characterId;
+}
 
 // --- Load Assets ---
 
@@ -483,6 +516,26 @@ loadSprite("suv", "Art/suv.png");
 loadSprite("pickup", "Art/pickup.png");
 
 loadSprite("compact", "Art/compact.png");
+
+// Fallback state sprites for car types that only have a base asset.
+loadSprite("van_clean", "Art/van.png");
+loadSprite("van_dirty", "Art/van.png");
+loadSprite("van_vacuum", "Art/van.png");
+loadSprite("junker_clean", "Art/junker.png");
+loadSprite("junker_dirty", "Art/junker.png");
+loadSprite("junker_vacuum", "Art/junker.png");
+loadSprite("luxury_clean", "Art/luxury.png");
+loadSprite("luxury_dirty", "Art/luxury.png");
+loadSprite("luxury_vacuum", "Art/luxury.png");
+loadSprite("suv_clean", "Art/suv.png");
+loadSprite("suv_dirty", "Art/suv.png");
+loadSprite("suv_vacuum", "Art/suv.png");
+loadSprite("pickup_clean", "Art/pickup.png");
+loadSprite("pickup_dirty", "Art/pickup.png");
+loadSprite("pickup_vacuum", "Art/pickup.png");
+loadSprite("compact_clean", "Art/compact.png");
+loadSprite("compact_dirty", "Art/compact.png");
+loadSprite("compact_vacuum", "Art/compact.png");
 
 loadSprite("player", "Art/player_temp.png");
 
@@ -814,7 +867,7 @@ scene("characters", () => {
             // Handle character selection with number keys
             if (char.unlocked) {
                 onKeyPress(String(index + 1), () => {
-                    selectedCharacterId = char.id;
+                    persistSelectedCharacter(char.id);
                     console.log(`Selected character: ${char.name}`);
                     go("characters"); // Refresh scene to show selection
                 });
@@ -858,7 +911,7 @@ scene("characters", () => {
 
         // Handle button clicks for character selection
         onClick("charButton", (btn) => {
-            selectedCharacterId = btn.charData.id;
+            persistSelectedCharacter(btn.charData.id);
             console.log(`Selected character: ${btn.charData.name}`);
             go("characters"); // Refresh scene to show selection
         });
@@ -1283,23 +1336,28 @@ let actionProgressBar = null; // Reference to the action progress bar
  * Player stats that persist across levels and get modified by upgrades
  * Multipliers < 1.0 are better for speed, > 1.0 are better for rewards
  */
-let playerStats = {
-    // Speed multipliers (lower = faster)
-    cleanSpeedMultiplier: 1.0, // Lower is faster (e.g., 0.8 means 20% faster)
-    vacuumSpeedMultiplier: 1.0,
-    
-    // Reward multipliers (higher = better)
-    searchLootMultiplier: 1.0, // Higher is better
-    searchAlarmModifier: 1.0, // Lower is better (reduces alarm chance)
+function createDefaultPlayerStats() {
+    return {
+        // Speed multipliers (lower = faster)
+        cleanSpeedMultiplier: 1.0, // Lower is faster (e.g., 0.8 means 20% faster)
+        vacuumSpeedMultiplier: 1.0,
+        moveSpeedMultiplier: 1.0,
 
-    // Base action times (in seconds)
-    baseCleanTime: 5,
-    baseVacuumTime: 5,
-    baseSearchTime: 5,
-    
-    // Bonus stats
-    timeBonus: 0 // Additional seconds added to timer
-};
+        // Reward multipliers (higher = better)
+        searchLootMultiplier: 1.0, // Higher is better
+        searchAlarmModifier: 1.0, // Lower is better (reduces alarm chance)
+
+        // Base action times (in seconds)
+        baseCleanTime: 5,
+        baseVacuumTime: 5,
+        baseSearchTime: 5,
+
+        // Bonus stats
+        timeBonus: 0 // Additional seconds added to timer
+    };
+}
+
+let playerStats = createDefaultPlayerStats();
 
 let playerUpgrades = []; // Names of purchased upgrades for display
 
@@ -1442,7 +1500,7 @@ const availableUpgrades = [
 
     { id: "search2", name: "Quieter Search", description: "Slightly reduce alarm chance.", rarity: "common", color: rgb(0, 255, 0), effect: () => { playerStats.searchAlarmModifier *= 0.9; } },
 
-    { id: "move1", name: "Running Shoes", description: "Move 5% faster.", rarity: "common", color: rgb(0, 255, 0), effect: () => { playerSpeed *= 1.05; } },
+    { id: "move1", name: "Running Shoes", description: "Move 5% faster.", rarity: "common", color: rgb(0, 255, 0), effect: () => { playerStats.moveSpeedMultiplier *= 1.05; } },
 
     { id: "tipjar", name: "Tip Jar", description: "5% chance to receive a small tip after completing a car.", rarity: "common", color: rgb(0, 255, 0), effect: () => { playerStats.tipChance = (playerStats.tipChance || 0) + 0.05; } },
 
@@ -1460,7 +1518,7 @@ const availableUpgrades = [
 
     { id: "search4", name: "Silent Search", description: "Reduce alarm chance by 25%.", rarity: "uncommon", color: rgb(0, 128, 255), effect: () => { playerStats.searchAlarmModifier *= 0.75; } },
 
-    { id: "move2", name: "Sprint Sneakers", description: "Move 10% faster.", rarity: "uncommon", color: rgb(0, 128, 255), effect: () => { playerSpeed *= 1.10; } },
+    { id: "move2", name: "Sprint Sneakers", description: "Move 10% faster.", rarity: "uncommon", color: rgb(0, 128, 255), effect: () => { playerStats.moveSpeedMultiplier *= 1.10; } },
 
     
 
@@ -1474,7 +1532,7 @@ const availableUpgrades = [
 
     { id: "search6", name: "Ghost Touch", description: "Reduce alarm chance by 35%.", rarity: "rare", color: rgb(128, 0, 255), effect: () => { playerStats.searchAlarmModifier *= 0.65; } },
 
-    { id: "move3", name: "Jet Boots", description: "Move 15% faster.", rarity: "rare", color: rgb(128, 0, 255), effect: () => { playerSpeed *= 1.15; } },
+    { id: "move3", name: "Jet Boots", description: "Move 15% faster.", rarity: "rare", color: rgb(128, 0, 255), effect: () => { playerStats.moveSpeedMultiplier *= 1.15; } },
 
     { id: "connections", name: "Customer Connections", description: "15% chance to receive a large tip after completing a car.", rarity: "rare", color: rgb(128, 0, 255), effect: () => { playerStats.largeTipChance = (playerStats.largeTipChance || 0) + 0.15; } },
 
@@ -1492,7 +1550,7 @@ const availableUpgrades = [
 
     { id: "timewarp", name: "Time Warp Watch", description: "Permanently adds 5 seconds to your timer.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerStats.timeBonus += 5; } },
 
-    { id: "move4", name: "Quantum Dash", description: "Move 20% faster.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerSpeed *= 1.20; } },
+    { id: "move4", name: "Quantum Dash", description: "Move 20% faster.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerStats.moveSpeedMultiplier *= 1.20; } },
 
     { id: "vipservice", name: "VIP Service", description: "Every 5th car completed gives a significant cash bonus.", rarity: "legendary", color: rgb(255, 215, 0), effect: () => { playerStats.vipServiceActive = true; } },
     
@@ -1747,9 +1805,6 @@ function calculateScore(runData) {
     return Math.floor(score);
 }
 
-// Currently selected character id
-let selectedCharacterId = "base";
-
 // Main Game Scene
 
 scene("main", (levelData = { level: 1, cash: 0 }) => {
@@ -1765,6 +1820,12 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     
     // Apply permanent upgrades at start of run
     if (isNewRun) {
+        playerStats = createDefaultPlayerStats();
+        playerUpgrades = [];
+        activeBuffs = [];
+        currentBuffs = [];
+        purchasedUpgradeIds = [];
+
         const savedData = SaveSystem.load();
         
         // Apply all purchased permanent upgrades
@@ -1842,7 +1903,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     // Player Setup
 
-    const playerSpeed = CONFIG.PLAYER_SPEED;
+    const playerSpeed = CONFIG.PLAYER_SPEED * playerStats.moveSpeedMultiplier;
 
     // Player size (scaled down from 1024x1024)
 
@@ -2753,6 +2814,15 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         if (!car || car.interacted || actionInProgress) return;
 
+        const actionAllowed =
+            (actionType === 'clean' && car.needsCleaning) ||
+            ((actionType === 'search' || actionType === 'vacuum') && car.needsVacuumOrSearch);
+
+        if (!actionAllowed) {
+            showFeedback(`Cannot ${actionType} this car right now.`, rgb(255, 120, 120));
+            return;
+        }
+
 
 
         // Set action in progress flag
@@ -3332,44 +3402,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-    // Function to display temporary feedback using the persistent text object
-
-    function showFeedback(message, color = rgb(255, 255, 255)) {
-
-        if (!feedbackTextObject) return; // Safety check
-
-
-
-        // Update the persistent text object
-
-        feedbackTextObject.text = message;
-
-        feedbackTextObject.color = color;
-
-        feedbackTextObject.opacity = 1; // Make it visible
-
-
-
-        // Hide the text after a delay
-
-        wait(1.5, () => {
-
-            if (feedbackTextObject) {
-
-                // Optional: Add a fade-out effect if desired, otherwise just hide
-
-                // tween(feedbackTextObject.opacity, 0, 0.5, (val) => feedbackTextObject.opacity = val);
-
-                feedbackTextObject.opacity = 0; // Hide instantly for now
-
-            }
-
-        });
-
-    }
-
-
-
     // Note: Movement keys and player boundary checks are already correctly placed inside this scene block.
 
 }); // End of scene("main", ...)
@@ -3486,16 +3518,7 @@ scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive da
     // Go back to title scene on space press
     onKeyPress("space", () => {
         // Reset player stats for next run
-        playerStats = {
-            cleanSpeedMultiplier: 1.0,
-            vacuumSpeedMultiplier: 1.0,
-            searchLootMultiplier: 1.0,
-            searchAlarmModifier: 1.0,
-            baseCleanTime: 5,
-            baseVacuumTime: 5,
-            baseSearchTime: 5,
-            timeBonus: 0
-        };
+        playerStats = createDefaultPlayerStats();
         playerUpgrades = [];
         go("title");
     });
