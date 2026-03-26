@@ -1956,27 +1956,58 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     // Player Movement with direct position updates instead of move()
 
+    const movePlayer = (dx, dy) => {
+        if (!isInteracting && !actionInProgress) {
+            player.pos.x += dx * playerSpeed * dt();
+            player.pos.y += dy * playerSpeed * dt();
+        }
+    };
+
+    onKeyDown("a", () => {
+
+        movePlayer(-1, 0);
+
+    });
+
+    onKeyDown("d", () => {
+
+        movePlayer(1, 0);
+
+    });
+
+    onKeyDown("w", () => {
+
+        movePlayer(0, -1);
+
+    });
+
+    onKeyDown("s", () => {
+
+        movePlayer(0, 1);
+
+    });
+
     onKeyDown("left", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.x -= playerSpeed * dt();
+        movePlayer(-1, 0);
 
     });
 
     onKeyDown("right", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.x += playerSpeed * dt();
+        movePlayer(1, 0);
 
     });
 
     onKeyDown("up", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.y -= playerSpeed * dt();
+        movePlayer(0, -1);
 
     });
 
     onKeyDown("down", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.y += playerSpeed * dt();
+        movePlayer(0, 1);
 
     });
 
@@ -1986,25 +2017,25 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     onKeyDown("arrow-left", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.x -= playerSpeed * dt();
+        movePlayer(-1, 0);
 
     });
 
     onKeyDown("arrow-right", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.x += playerSpeed * dt();
+        movePlayer(1, 0);
 
     });
 
     onKeyDown("arrow-up", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.y -= playerSpeed * dt();
+        movePlayer(0, -1);
 
     });
 
     onKeyDown("arrow-down", () => {
 
-        if (!isInteracting && !actionInProgress) player.pos.y += playerSpeed * dt();
+        movePlayer(0, 1);
 
     });
 
