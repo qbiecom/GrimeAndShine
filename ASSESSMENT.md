@@ -14,19 +14,13 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Medium-Priority Code Quality / Logic Issues
 
-### 1. Save data is parsed without schema/version validation
-
-- `SaveSystem.load()` directly parses whatever is in `localStorage` in `game.js:333` through `game.js:345`.
-- There is no migration step and no merge with defaults.
-- Corrupt or manually edited save payloads can leave missing fields such as `settings`, `statistics`, or `unlockedCharacters`, causing unstable behavior later.
-
-### 2. Level completion measures "interacted" cars, not completed service states
+### 1. Level completion measures "interacted" cars, not completed service states
 
 - Time-out completion uses `car.interacted` in `game.js:2463` through `game.js:2498`.
 - Full completion also counts `car.interacted` in `game.js:3201` through `game.js:3225`.
 - This matches the current one-action model, but it weakens design intent around actually servicing cars and makes some upgrade descriptions misleading.
 
-### 3. Debug UI is always visible in gameplay
+### 2. Debug UI is always visible in gameplay
 
 - `debugText` is added in `game.js:1937` through `game.js:1947` and constantly updated in `game.js:1951` through `game.js:1987`.
 - This looks like development instrumentation left enabled in production.
@@ -44,11 +38,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - Save data for stars, unlocks, permanent upgrades, and high scores lives entirely in `localStorage` in `game.js:305` through `game.js:454`.
 - This is acceptable for a local single-player prototype, but it means progression and scores are trivially editable from devtools.
 - If the project later exposes leaderboards or achievements, current saved data must be treated as untrusted.
-
-### 3. Local save tampering can break game state, not just cheat progression
-
-- The game assumes loaded save fields are structurally valid.
-- A malformed save can trigger logic errors, stale unlock states, or broken upgrade requirements rather than failing safely.
 
 ## Missing or Partial Features Compared to the Design Documents
 
@@ -101,10 +90,9 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Recommended Fix Order
 
-1. Add save-data validation and migration so malformed `localStorage` entries fail safely.
-2. Remove the always-on debug UI from gameplay builds.
-3. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
-4. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
+1. Remove the always-on debug UI from gameplay builds.
+2. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
+3. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
 
 ## Overall Assessment
 

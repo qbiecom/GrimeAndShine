@@ -334,12 +334,14 @@ function showFeedback(message, color = rgb(255, 255, 255)) {
  */
 const SaveSystem = {
     SAVE_KEY: 'grimeAndShine_saveData',
+    SAVE_VERSION: 1,
     
     /**
      * Get default save data structure
      */
     getDefaultData() {
         return {
+            version: this.SAVE_VERSION,
             metaCurrency: 0, // Stars earned across all runs
             permanentUpgrades: [], // IDs of purchased permanent upgrades
             unlockedCharacters: ['base'], // Character IDs that are unlocked
@@ -356,6 +358,52 @@ const SaveSystem = {
             }
         };
     },
+
+    normalizeData(rawData) {
+        const defaults = this.getDefaultData();
+        const data = rawData && typeof rawData === 'object' ? rawData : {};
+
+        const normalized = {
+            ...defaults,
+            version: this.SAVE_VERSION,
+            metaCurrency: Number.isFinite(data.metaCurrency) ? Math.max(0, Math.floor(data.metaCurrency)) : defaults.metaCurrency,
+            permanentUpgrades: Array.isArray(data.permanentUpgrades)
+                ? [...new Set(data.permanentUpgrades.filter((id) => typeof id === 'string'))]
+                : defaults.permanentUpgrades,
+            unlockedCharacters: Array.isArray(data.unlockedCharacters)
+                ? [...new Set(['base', ...data.unlockedCharacters.filter((id) => typeof id === 'string')])]
+                : defaults.unlockedCharacters,
+            statistics: {
+                totalRuns: Number.isFinite(data.statistics?.totalRuns) ? Math.max(0, Math.floor(data.statistics.totalRuns)) : defaults.statistics.totalRuns,
+                totalCarsCompleted: Number.isFinite(data.statistics?.totalCarsCompleted) ? Math.max(0, Math.floor(data.statistics.totalCarsCompleted)) : defaults.statistics.totalCarsCompleted,
+                totalCashEarned: Number.isFinite(data.statistics?.totalCashEarned) ? Math.max(0, Math.floor(data.statistics.totalCashEarned)) : defaults.statistics.totalCashEarned,
+                highestLevel: Number.isFinite(data.statistics?.highestLevel) ? Math.max(1, Math.floor(data.statistics.highestLevel)) : defaults.statistics.highestLevel,
+                bestScore: Number.isFinite(data.statistics?.bestScore) ? Math.max(0, Math.floor(data.statistics.bestScore)) : defaults.statistics.bestScore,
+            },
+            highScores: Array.isArray(data.highScores)
+                ? data.highScores
+                    .filter((entry) => entry && Number.isFinite(entry.score) && Number.isFinite(entry.level) && typeof entry.date === 'string')
+                    .map((entry) => ({
+                        score: Math.max(0, Math.floor(entry.score)),
+                        level: Math.max(1, Math.floor(entry.level)),
+                        date: entry.date,
+                    }))
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 10)
+                : defaults.highScores,
+            settings: {
+                selectedCharacter: typeof data.settings?.selectedCharacter === 'string'
+                    ? data.settings.selectedCharacter
+                    : defaults.settings.selectedCharacter,
+            },
+        };
+
+        if (!normalized.unlockedCharacters.includes(normalized.settings.selectedCharacter)) {
+            normalized.settings.selectedCharacter = 'base';
+        }
+
+        return normalized;
+    },
     
     /**
      * Load save data from localStorage
@@ -364,7 +412,7 @@ const SaveSystem = {
         try {
             const saved = localStorage.getItem(this.SAVE_KEY);
             if (saved) {
-                const data = JSON.parse(saved);
+                const data = this.normalizeData(JSON.parse(saved));
                 console.log('Save data loaded:', data);
                 return data;
             }
@@ -379,8 +427,9 @@ const SaveSystem = {
      */
     save(data) {
         try {
-            localStorage.setItem(this.SAVE_KEY, JSON.stringify(data));
-            console.log('Save data saved:', data);
+            const normalized = this.normalizeData(data);
+            localStorage.setItem(this.SAVE_KEY, JSON.stringify(normalized));
+            console.log('Save data saved:', normalized);
             return true;
         } catch (e) {
             console.error('Error saving data:', e);
