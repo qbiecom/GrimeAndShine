@@ -6,9 +6,9 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Executive Summary
 
-- The most immediate runtime issues in core gameplay flow have been addressed, but several state-management and maintainability issues still remain.
-- The browser shell is functional but still weak from a supply-chain perspective because it loads a third-party engine from a CDN without integrity protection.
-- The game implements the broad loop of moving around a lot, servicing cars, leveling up, and earning persistent stars, but many of the stronger roguelike/roguelite design goals are still partial or absent.
+- Recent fixes resolved the main gameplay-flow defects called out in earlier revisions, including one-action car interactions, random event effects, save-data normalization, run completion handling, and browser dependency integrity.
+- The main remaining risks are design and product gaps rather than immediate breakage: progression is still fully client-trusted, the parking lot layout remains static, and several higher-level roguelite systems are only partially implemented.
+- The game now covers the core loop more reliably, with leveling, random events, persistent upgrades, temporary buffs, and character unlocks in place, but it still falls short of the fuller variety and replayability described in the design documents.
 
 ## High-Priority Code Issues
 
@@ -18,7 +18,7 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ### 2. All progression and high-score state is fully client-trusted
 
-- Save data for stars, unlocks, permanent upgrades, and high scores lives entirely in `localStorage` in `game.js:305` through `game.js:454`.
+- Save data for stars, unlocks, permanent upgrades, and high scores lives entirely in `localStorage` in `game.js:379` through `game.js:582`.
 - This is acceptable for a local single-player prototype, but it means progression and scores are trivially editable from devtools.
 - If the project later exposes leaderboards or achievements, current saved data must be treated as untrusted.
 
@@ -33,8 +33,8 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 ### 4. Permanent upgrade system is narrower than the design vision
 
 - The design mentions unlocking broader tool types and abilities such as steam cleaners, leaf blowers, time extensions, and rare-item boosts in `Roguelike Design.md:33` through `Roguelike Design.md:47`.
-- Permanent upgrades in `game.js:1548` through `game.js:1616` mainly cover timers, stat multipliers, starting cash, and character unlocks.
-- Specialized tools exist only as run upgrades, not as clear permanent unlock paths.
+- Permanent upgrades in `game.js:1694` through `game.js:1762` cover time extensions, stat boosts, starting cash, and persistent character unlocks.
+- Specialized tools such as the steam cleaner and magnetic vacuum exist in run upgrades, but they still are not exposed as permanent unlock paths.
 
 ### 5. Difficulty scaling is present, but challenge variety is still shallow
 
@@ -48,9 +48,10 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Recommended Fix Order
 
-1. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
-2. Implement the higher-priority missing gameplay features from the design docs.
+1. Decide whether purely local `localStorage` progression is acceptable long-term; if not, add validation/server authority before exposing competitive or shareable progression.
+2. Implement the highest-impact missing design features: procedural parking layouts, richer challenge variety, and rival/boss or narrative systems.
+3. Expand permanent progression so more specialized tools and playstyle-defining unlocks persist across runs.
 
 ## Overall Assessment
 
-The project is a promising prototype with a visible gameplay loop and a decent amount of content scaffolding, but it is not yet robust. Several defects are likely to surface quickly in live play, especially once rarer cars and more upgrade paths are exercised. The biggest implementation gap is not polish but reliability: core systems need stronger state management, safer asset handling, and clearer separation between per-run state and persistent progression before the broader roguelike design can land cleanly.
+The project has moved past the most immediate runtime and browser-shell issues and now reads as a more stable prototype. The remaining weaknesses are mostly about depth, trust boundaries, and long-term replayability rather than outright malfunction. The biggest gap is now feature completeness against the design vision: the game has the foundation for a roguelite loop, but it still needs more procedural variety, stronger meta progression breadth, and higher-pressure encounter design to fully deliver on that direction.
