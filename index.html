@@ -23,6 +23,11 @@
                 </div>
             </header>
 
+            <div class="canvas-shell panel">
+                <canvas id="game-canvas" tabindex="0" aria-describedby="hud-narrative run-state" aria-label="Grime and Shine game canvas"></canvas>
+                <div id="canvas-status" class="sr-only" role="status" aria-live="polite"></div>
+            </div>
+
             <section class="panel narrative-panel" aria-labelledby="narrative-title">
                 <div class="panel-heading narrative-heading">
                     <h2 id="narrative-title">Shift Notes</h2>
@@ -33,11 +38,6 @@
                     <ul id="hud-narrative" class="narrative-list" aria-live="polite" aria-label="Shift Notes log"></ul>
                 </div>
             </section>
-
-            <div class="canvas-shell panel">
-                <canvas id="game-canvas" tabindex="0" aria-describedby="hud-narrative run-state" aria-label="Grime and Shine game canvas"></canvas>
-                <div id="canvas-status" class="sr-only" role="status" aria-live="polite"></div>
-            </div>
         </section>
 
         <aside class="hud-sidebar" aria-label="Run details">
