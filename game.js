@@ -40,6 +40,10 @@ const CONFIG = {
     RANDOM_EVENT_CHANCE: 0.3 // 30% chance per level
 };
 
+const EVENT_PRIORITY_TIME_BONUS = 6;
+const EVENT_PRIORITY_CASH_BONUS = 12;
+const EVENT_RAIN_VISIBILITY_RADIUS = 230;
+
 // Car Type Definitions (Adjusted for Kaboom - size might need tweaking)
 /**
  * Each car type has unique characteristics that affect gameplay:
@@ -322,6 +326,46 @@ function showFeedback(message, color = rgb(255, 255, 255)) {
         if (feedbackTextObject && feedbackTextObject.exists()) {
             feedbackTextObject.opacity = 0;
         }
+    });
+}
+
+function getEventSummary(state) {
+    if (!state || !state.name) {
+        return "";
+    }
+
+    switch (state.name) {
+        case "Rainstorm":
+            return `Clean 30% faster. Only cars within ${state.visibilityRadius || EVENT_RAIN_VISIBILITY_RADIUS}px stay visible.`;
+        case "Rush Hour":
+            return `+${state.extraCars || 3} cars this level and -${state.timePenalty || 5}s on the clock.`;
+        case "Customer Demands":
+            return `${state.priorityCarCount || 2} priority cars grant +$${state.priorityCashBonus || EVENT_PRIORITY_CASH_BONUS} and +${state.priorityTimeBonus || EVENT_PRIORITY_TIME_BONUS}s each when completed.`;
+        default:
+            return state.description || "";
+    }
+}
+
+function choosePriorityCars(cars, count) {
+    const shuffled = cars.slice().sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
+function applyRainstormVisibility(player, cars) {
+    const radius = currentEventState.visibilityRadius || EVENT_RAIN_VISIBILITY_RADIUS;
+
+    cars.forEach((car) => {
+        if (!car.exists()) {
+            return;
+        }
+
+        if (car.interacted) {
+            car.opacity = 0.5;
+            return;
+        }
+
+        const distanceToPlayer = player.pos.dist(car.worldPos());
+        car.opacity = distanceToPlayer <= radius ? 1 : 0.22;
     });
 }
 
@@ -1467,9 +1511,15 @@ const levelEvents = [
 
         name: "Rainstorm",
 
-        description: "It's raining! Cleaning is 30% faster.",
+        description: "Rain speeds cleaning by 30%, but only nearby cars stay visible.",
 
-        apply: () => { playerStats.cleanSpeedMultiplier *= 0.7; }
+        apply: () => {
+            playerStats.cleanSpeedMultiplier *= 0.7;
+            return {
+                rainstorm: true,
+                visibilityRadius: EVENT_RAIN_VISIBILITY_RADIUS,
+            };
+        }
 
     },
 
@@ -1477,9 +1527,15 @@ const levelEvents = [
 
         name: "Rush Hour",
 
-        description: "Rush hour! More cars appear this level.",
+        description: "Rush hour! Three extra cars arrive and the clock starts 5 seconds lower.",
 
-        apply: () => { extraCarsThisLevel += 3; }
+        apply: () => {
+            extraCarsThisLevel += 3;
+            return {
+                rushHour: true,
+                timePenalty: 5,
+            };
+        }
 
     },
 
@@ -1487,9 +1543,14 @@ const levelEvents = [
 
         name: "Customer Demands",
 
-        description: "Some customers demand priority service! Prioritize their cars.",
+        description: "Two cars become priority jobs. Finish them for +6s and +$12 each.",
 
-        apply: () => { /* For now, just a message */ }
+        apply: () => ({
+            customerDemands: true,
+            priorityCarCount: 2,
+            priorityTimeBonus: EVENT_PRIORITY_TIME_BONUS,
+            priorityCashBonus: EVENT_PRIORITY_CASH_BONUS,
+        })
 
     }
 
@@ -1500,6 +1561,8 @@ const levelEvents = [
 // Current event for this level
 
 let currentEvent = null;
+
+let currentEventState = {};
 
 
 
@@ -1865,29 +1928,36 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         }
     }
 
-    // Time decreases by 5 seconds per level, with a minimum of 30 seconds
-
-    timeLeft = Math.max(CONFIG.BASE_TIME + playerStats.timeBonus - (currentLevel - 1) * CONFIG.TIME_DECREASE_PER_LEVEL, CONFIG.MIN_TIME);
-
     carsInLevel = [];
 
     resetParkingSpots();
 
     // Reset event for this level
     currentEvent = null;
+    currentEventState = {};
     extraCarsThisLevel = 0;
 
     // Apply random event (30% chance)
     if (Math.random() < CONFIG.RANDOM_EVENT_CHANCE) {
         currentEvent = choose(levelEvents);
         console.log(`Random Event: ${currentEvent.name} - ${currentEvent.description}`);
-        currentEvent.apply();
-        
-        // Show event notification
+        currentEventState = {
+            name: currentEvent.name,
+            description: currentEvent.description,
+            ...(currentEvent.apply() || {}),
+        };
+
         wait(0.5, () => {
-            showFeedback(`Event: ${currentEvent.name}!`, rgb(255, 215, 0));
+            showFeedback(`Event: ${currentEvent.name}! ${getEventSummary(currentEventState)}`, rgb(255, 215, 0));
         });
     }
+
+    // Time decreases by 5 seconds per level, with a minimum of 30 seconds
+
+    timeLeft = Math.max(
+        CONFIG.BASE_TIME + playerStats.timeBonus - (currentLevel - 1) * CONFIG.TIME_DECREASE_PER_LEVEL - (currentEventState.timePenalty || 0),
+        CONFIG.MIN_TIME
+    );
 
     // Apply selected character's ability
     const selectedChar = characters.find(c => c.id === selectedCharacterId);
@@ -2071,6 +2141,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
             "\n\nBuffs:\n" + (currentBuffs.length > 0 ? currentBuffs.map(b => b.name).join("\n") : "None");
 
+        if (currentEventState.rainstorm) {
+            applyRainstormVisibility(player, carsInLevel);
+        }
+
     });
 
 
@@ -2189,6 +2263,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 interacted: false,
 
+                isPriorityCustomer: false,
+
+                priorityRewardClaimed: false,
+
                 orientation: spot.orientation,
 
                 specialProperty: null, // Initialize special property
@@ -2297,6 +2375,28 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         }
 
+    }
+
+    if (currentEventState.customerDemands) {
+        const priorityCars = choosePriorityCars(carsInLevel.filter(car => !car.interacted), currentEventState.priorityCarCount || 2);
+        currentEventState.priorityCarsRemaining = priorityCars.length;
+
+        priorityCars.forEach((car) => {
+            car.isPriorityCustomer = true;
+            car.add([
+                text("PRIORITY", {
+                    size: 14,
+                    width: 100,
+                    align: "center",
+                }),
+                pos(0, -62),
+                anchor("center"),
+                color(255, 210, 80),
+                outline(2, rgb(0, 0, 0)),
+                z(10),
+                "priorityBadge",
+            ]);
+        });
     }
 
     console.log(`Level ${currentLevel}: Spawned ${carsInLevel.length} cars.`);
@@ -2460,6 +2560,18 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         "timerText"
 
     ]);
+
+    if (currentEventState.name) {
+        add([
+            text(`Event: ${currentEventState.name} - ${getEventSummary(currentEventState)}`, { size: 16, width: 520 }),
+            pos(width() / 2, 52),
+            anchor("top"),
+            fixed(),
+            z(100),
+            color(255, 215, 0),
+            "eventText",
+        ]);
+    }
 
 
 
@@ -2693,13 +2805,23 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
         // Conditionally add actions based on car state
+        if (car.isPriorityCustomer && !car.priorityRewardClaimed) {
+            interactionMenu.add([
+                text(`Priority: +$${currentEventState.priorityCashBonus || EVENT_PRIORITY_CASH_BONUS}, +${currentEventState.priorityTimeBonus || EVENT_PRIORITY_TIME_BONUS}s`, { size: 14 }),
+                pos(0, -28),
+                anchor("center"),
+                color(255, 210, 80),
+            ]);
+        }
+
         if (car.needsCleaning) {
             // Only show Clean option
-            interactionMenu.add([text(`[2] Clean (${cleanTime}s)`, { size: 16 }), pos(0, 0), anchor("center")]);
+            interactionMenu.add([text(`[2] Clean (${cleanTime}s)`, { size: 16 }), pos(0, car.isPriorityCustomer && !car.priorityRewardClaimed ? 12 : 0), anchor("center")]);
         } else if (car.needsVacuumOrSearch) {
             // Show Search and Vacuum options (adjust Y positions)
-            interactionMenu.add([text(`[1] Search (${searchTime}s)`, { size: 16 }), pos(0, -10), anchor("center")]);
-            interactionMenu.add([text(`[3] Vacuum (${vacuumTime}s)`, { size: 16 }), pos(0, 10), anchor("center")]);
+            const menuOffset = car.isPriorityCustomer && !car.priorityRewardClaimed ? 12 : 0;
+            interactionMenu.add([text(`[1] Search (${searchTime}s)`, { size: 16 }), pos(0, -10 + menuOffset), anchor("center")]);
+            interactionMenu.add([text(`[3] Vacuum (${vacuumTime}s)`, { size: 16 }), pos(0, 10 + menuOffset), anchor("center")]);
         }
 
     }
@@ -2973,6 +3095,30 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     // Function to process action results after completion
 
     function completeAction(car, actionType, modifier) {
+
+        const awardPriorityCustomerBonus = () => {
+            if (!car.isPriorityCustomer || car.priorityRewardClaimed) {
+                return;
+            }
+
+            const timeBonus = currentEventState.priorityTimeBonus || EVENT_PRIORITY_TIME_BONUS;
+            const cashBonus = currentEventState.priorityCashBonus || EVENT_PRIORITY_CASH_BONUS;
+
+            car.priorityRewardClaimed = true;
+            currentCash += cashBonus;
+            timeLeft += timeBonus;
+            currentEventState.priorityCarsRemaining = Math.max((currentEventState.priorityCarsRemaining || 1) - 1, 0);
+            markUIDirty(['cash', 'timer']);
+
+            car.children
+                .filter(child => child.is("priorityBadge"))
+                .forEach(child => child.destroy());
+
+            console.log(`Priority customer completed: +$${cashBonus}, +${timeBonus}s`);
+            wait(0.3, () => {
+                showFeedback(`Priority Customer! +$${cashBonus} and +${timeBonus}s`, rgb(255, 210, 80));
+            });
+        };
 
         const tryGrantSearchBuff = () => {
             let buffChance = 0.12;
@@ -3309,6 +3455,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         // Apply all bonus effects
 
         applyBonusEffects();
+
+        awardPriorityCustomerBonus();
 
 
 

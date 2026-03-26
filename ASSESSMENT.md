@@ -36,13 +36,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - The implementation uses a fixed hard-coded parking grid in `game.js:197` through `game.js:235`.
 - Only car placement order and car type selection vary.
 
-### 2. Random events are only partially implemented
-
-- The design calls out richer event effects such as reduced visibility, customer priority pressure, and continued arrivals in rush hour in `Roguelike Design.md:38` through `Roguelike Design.md:42`.
-- Current events in `game.js:1379` through `game.js:1413` are limited.
-- `Customer Demands` is only a placeholder comment in `game.js:1405` through `game.js:1409`.
-- `Rainstorm` speeds cleaning but does not alter visibility or targeting.
-
 ### 3. Roguelike "one action per car" is undermined by current and planned logic
 
 - The design emphasizes one strategic action per car in `Roguelike Design.md:11` through `Roguelike Design.md:16`.
