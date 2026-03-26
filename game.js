@@ -43,6 +43,8 @@ const CONFIG = {
 const EVENT_PRIORITY_TIME_BONUS = 6;
 const EVENT_PRIORITY_CASH_BONUS = 12;
 const EVENT_RAIN_VISIBILITY_RADIUS = 230;
+const ENCOUNTER_PRIORITY_BONUS_CASH = 20;
+const ENCOUNTER_PRIORITY_BONUS_TIME = 8;
 
 // Car Type Definitions (Adjusted for Kaboom - size might need tweaking)
 /**
@@ -1248,6 +1250,8 @@ scene("rules", () => {
 
         "• Each level resolves when the timer expires; hit the objective target before the buzzer to pass.",
 
+        "• Some milestone levels trigger rival or boss encounters with tagged cars that must be handled before timeout.",
+
         "• After each level, choose an upgrade to improve your skills.",
 
         "• Rush Hour can add late arrivals mid-level, so unfinished lanes can get busier over time."
@@ -1811,6 +1815,8 @@ let currentEventState = {};
 
 let currentLevelObjective = null;
 
+let currentNarrativeMilestone = null;
+
 
 
 // Extra cars added by events
@@ -1883,12 +1889,162 @@ function getObjectiveSummary() {
     return currentLevelObjective ? currentLevelObjective.getSummary() : "No active objective";
 }
 
+const narrativeMilestones = {
+    1: {
+        level: 1,
+        title: "First Shift",
+        intro: "First shift at Grime and Shine. Manager Rizzo wants clean work, fast lanes, and no excuses.",
+        success: "Rizzo nods from the booth. You can handle the rush.",
+        failure: "Rizzo marks your name in red. The lot chews up rookies fast.",
+    },
+    3: {
+        level: 3,
+        title: "Rival Valet",
+        intro: "Jett, the rival valet from Uptown Auto Spa, sweeps in and tags two premium jobs before you can blink.",
+        success: "Jett peels out empty-handed. Your lane stays ahead this round.",
+        failure: "Jett leaves laughing while your premium work slips away.",
+        encounter: {
+            type: "rival",
+            objectiveId: "rival-priority",
+            objectiveName: "Beat Jett to the Premium Jobs",
+            description: "Finish both rival-tagged cars before time runs out.",
+            summary: ({ progressCount, requiredCount }) => `Finish ${progressCount}/${requiredCount} rival-tagged premium jobs before the buzzer.`,
+            requiredCount: 2,
+            priorityCarCount: 2,
+            priorityTimeBonus: ENCOUNTER_PRIORITY_BONUS_TIME,
+            priorityCashBonus: ENCOUNTER_PRIORITY_BONUS_CASH,
+            badgeText: "RIVAL",
+            badgeColor: rgb(255, 120, 120),
+            eventName: "Rival Valet",
+            eventSummary: `Jett tagged 2 premium jobs. Each one pays +$${ENCOUNTER_PRIORITY_BONUS_CASH} and +${ENCOUNTER_PRIORITY_BONUS_TIME}s if you finish it.`,
+            objectiveDescription: "Jett will poach the lane if you miss these cars.",
+            announce: "Rival encounter active. Finish both tagged cars before timeout.",
+        },
+    },
+    5: {
+        level: 5,
+        title: "Boss Inspection",
+        intro: "Madam Vale arrives in a black luxury convoy. If her inspection cars leave dirty, the whole run is over.",
+        success: "Madam Vale signs the clipboard. Grime and Shine just earned a better class of client.",
+        failure: "Madam Vale blacklists the lot. The shift ends on the spot.",
+        encounter: {
+            type: "boss",
+            objectiveId: "boss-inspection",
+            objectiveName: "Madam Vale's Inspection",
+            description: "Complete the three inspection cars before time expires.",
+            summary: ({ progressCount, requiredCount }) => `Complete ${progressCount}/${requiredCount} inspection cars before time runs out.`,
+            requiredCount: 3,
+            priorityCarCount: 3,
+            forcedCarType: "Luxury",
+            forceSpecialProperty: "VIP Owner",
+            priorityTimeBonus: 0,
+            priorityCashBonus: 0,
+            badgeText: "BOSS",
+            badgeColor: rgb(255, 215, 0),
+            eventName: "Boss Inspection",
+            eventSummary: "Three inspection cars replace standard pressure. All three must be completed to survive the level.",
+            objectiveDescription: "Madam Vale only counts spotless inspection completions.",
+            announce: "Boss encounter active. Clear all three inspection cars before timeout.",
+        },
+    },
+};
+
+function getNarrativeMilestone(level) {
+    return narrativeMilestones[level] || null;
+}
+
+function queueNarrativeFeedback(lines, color = rgb(220, 220, 255), startDelay = 0.35, stepDelay = 2.2) {
+    if (!Array.isArray(lines)) {
+        return;
+    }
+
+    lines
+        .filter((line) => typeof line === "string" && line.trim().length > 0)
+        .forEach((line, index) => {
+            wait(startDelay + (index * stepDelay), () => {
+                showFeedback(line, color);
+            });
+        });
+}
+
+function applyEncounterToCars(encounter, cars) {
+    if (!encounter || !Array.isArray(cars) || cars.length === 0) {
+        return [];
+    }
+
+    const selectedCars = choosePriorityCars(cars.filter((car) => !car.completed), encounter.priorityCarCount || 1);
+    currentEventState.priorityCarsRemaining = selectedCars.length;
+    currentEventState.priorityTimeBonus = encounter.priorityTimeBonus || 0;
+    currentEventState.priorityCashBonus = encounter.priorityCashBonus || 0;
+
+    selectedCars.forEach((car) => {
+        car.isPriorityCustomer = true;
+        car.isEncounterTarget = true;
+        car.encounterType = encounter.type;
+        car.encounterRewardClaimed = false;
+        if (encounter.forceSpecialProperty) {
+            car.specialProperty = encounter.forceSpecialProperty;
+        }
+        car.add([
+            text(encounter.badgeText || "TARGET", {
+                size: 14,
+                width: 100,
+                align: "center",
+            }),
+            pos(0, -62),
+            anchor("center"),
+            encounter.badgeColor || color(255, 210, 80),
+            outline(2, rgb(0, 0, 0)),
+            z(10),
+            "priorityBadge",
+        ]);
+    });
+
+    return selectedCars;
+}
+
+function createEncounterObjective(level, cars, encounter) {
+    const eligibleCars = applyEncounterToCars(encounter, cars);
+    const requiredCount = Math.min(encounter.requiredCount || eligibleCars.length, eligibleCars.length);
+
+    return {
+        id: encounter.objectiveId,
+        name: encounter.objectiveName,
+        description: encounter.objectiveDescription || encounter.description,
+        requiredCount,
+        eligibleCount: eligibleCars.length,
+        encounterType: encounter.type,
+        getProgressCount: () => eligibleCars.filter((car) => car.completed).length,
+        shouldCompleteLevel: () => eligibleCars.filter((car) => car.completed).length >= requiredCount,
+        getSummary: () => encounter.summary({
+            requiredCount,
+            eligibleCount: eligibleCars.length,
+            progressCount: eligibleCars.filter((car) => car.completed).length,
+        }),
+    };
+}
+
 function getRequiredCompletionRatio() {
     if (!currentLevelObjective || currentLevelObjective.requiredCount <= 0 || carsInLevel.length === 0) {
         return CONFIG.LEVEL_COMPLETE_THRESHOLD;
     }
 
     return Math.max(CONFIG.LEVEL_COMPLETE_THRESHOLD, currentLevelObjective.requiredCount / carsInLevel.length);
+}
+
+function getLevelResolutionNarrative(success) {
+    const milestone = currentNarrativeMilestone;
+    if (!milestone) {
+        return success
+            ? `Level ${currentLevel} complete. The lane keeps moving.`
+            : `Level ${currentLevel} failed. The lot shuts you down.`;
+    }
+
+    if (success) {
+        return milestone.success || `Level ${currentLevel} complete.`;
+    }
+
+    return milestone.failure || `Level ${currentLevel} failed.`;
 }
 
 function getArrivalPressureLabel() {
@@ -2321,6 +2477,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     
     // Track if this is the start of a new run (level 1 with 0 cash)
     const isNewRun = currentLevel === 1 && currentCash === 0;
+    currentNarrativeMilestone = getNarrativeMilestone(currentLevel);
     
     // Apply permanent upgrades at start of run
     if (isNewRun) {
@@ -2352,8 +2509,16 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     currentLevelObjective = null;
     extraCarsThisLevel = 0;
 
+    if (currentNarrativeMilestone?.encounter) {
+        currentEventState = {
+            name: currentNarrativeMilestone.encounter.eventName,
+            description: currentNarrativeMilestone.encounter.description,
+            encounter: currentNarrativeMilestone.encounter,
+        };
+    }
+
     // Apply random event (30% chance)
-    if (Math.random() < CONFIG.RANDOM_EVENT_CHANCE) {
+    if (!currentNarrativeMilestone?.encounter && Math.random() < CONFIG.RANDOM_EVENT_CHANCE) {
         currentEvent = choose(levelEvents);
         console.log(`Random Event: ${currentEvent.name} - ${currentEvent.description}`);
         currentEventState = {
@@ -2615,7 +2780,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     for (let i = 0; i < numberOfCars; i++) {
 
         const spot = shuffledSpots[i];
-        const selectedType = getRandomCarType(currentLevel);
+        const selectedType = currentNarrativeMilestone?.encounter?.forcedCarType && i < (currentNarrativeMilestone.encounter.priorityCarCount || 0)
+            ? carTypes.find((carType) => carType.name === currentNarrativeMilestone.encounter.forcedCarType) || getRandomCarType(currentLevel)
+            : getRandomCarType(currentLevel);
         const car = createCarInSpot(spot, selectedType, { level: currentLevel });
         // --- End State Setting ---
         
@@ -2639,7 +2806,13 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     }
 
-    if (currentEventState.customerDemands) {
+    if (currentEventState.encounter) {
+        currentLevelObjective = createEncounterObjective(currentLevel, carsInLevel, currentEventState.encounter);
+        queueNarrativeFeedback([
+            currentNarrativeMilestone?.intro,
+            currentEventState.encounter.announce,
+        ], currentEventState.encounter.badgeColor || rgb(255, 215, 0), 0.4, 2.6);
+    } else if (currentEventState.customerDemands) {
         const priorityCars = choosePriorityCars(carsInLevel.filter(car => !car.completed), currentEventState.priorityCarCount || 2);
         currentEventState.priorityCarsRemaining = priorityCars.length;
 
@@ -2825,14 +2998,24 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 if (completionPercentage >= requiredCompletionRatio * 100) {
 
                     console.log(`Level ${currentLevel} complete! Advancing to upgrade screen.`);
+                    const levelSuccessText = getLevelResolutionNarrative(true);
+                    announceCanvasStatus(levelSuccessText);
+                    console.log(levelSuccessText);
 
                     // Go to the upgrade scene
 
-                    go("upgradeScene", { nextLevel: currentLevel + 1, cash: currentCash });
+                    go("upgradeScene", {
+                        nextLevel: currentLevel + 1,
+                        cash: currentCash,
+                        narrative: levelSuccessText,
+                    });
 
                 } else {
 
                     console.log(`Level ${currentLevel} failed. Did not reach the objective threshold before timeout.`);
+                    const levelFailureText = getLevelResolutionNarrative(false);
+                    announceCanvasStatus(levelFailureText);
+                    console.log(levelFailureText);
 
                     // Go to game over, passing all relevant data
 
@@ -2840,7 +3023,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                         cash: currentCash,
                         level: currentLevel,
                         carsCompleted: completedCars,
-                        totalCars: totalCars
+                        totalCars: totalCars,
+                        narrative: levelFailureText,
                     });
 
                 }
@@ -3300,6 +3484,36 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
             });
         };
 
+        const awardEncounterBonus = () => {
+            if (!car.isEncounterTarget || car.encounterRewardClaimed) {
+                return;
+            }
+
+            car.encounterRewardClaimed = true;
+
+            if (car.encounterType === "rival") {
+                const timeBonus = currentEventState.priorityTimeBonus || 0;
+                const cashBonus = currentEventState.priorityCashBonus || 0;
+
+                if (cashBonus > 0) {
+                    currentCash += cashBonus;
+                    markUIDirty('cash');
+                }
+
+                if (timeBonus > 0) {
+                    timeLeft += timeBonus;
+                    markUIDirty('timer');
+                }
+
+                showFeedback(`Jett blocked! +$${cashBonus} and +${timeBonus}s`, rgb(255, 120, 120));
+                return;
+            }
+
+            if (car.encounterType === "boss") {
+                showFeedback("Inspection car cleared.", rgb(255, 215, 0));
+            }
+        };
+
         const tryGrantSearchBuff = () => {
             let buffChance = 0.12;
 
@@ -3659,6 +3873,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         applyBonusEffects();
 
         awardPriorityCustomerBonus();
+        awardEncounterBonus();
 
 
 
@@ -3708,7 +3923,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     updateNonInteractedCars();
 
-    currentLevelObjective = createLevelObjective(currentLevel, carsInLevel);
+    if (!currentLevelObjective) {
+        currentLevelObjective = createLevelObjective(currentLevel, carsInLevel);
+    }
 
     const spawnRushHourArrival = () => {
         if (!currentEventState.arrivalPressure || currentEventState.rushHourCarsRemaining <= 0) {
@@ -3761,6 +3978,15 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         runState: getRunStateLabel(),
         announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`,
     });
+
+    if (isNewRun) {
+        queueNarrativeFeedback([
+            "Shift start. Rizzo tosses you the keys and tells you to earn your spot.",
+            currentNarrativeMilestone?.intro,
+        ], rgb(200, 220, 255), 0.25, 2.5);
+    } else if (currentNarrativeMilestone && !currentEventState.encounter) {
+        queueNarrativeFeedback([currentNarrativeMilestone.intro], rgb(200, 220, 255), 0.35, 2.2);
+    }
 
     
 
@@ -3848,7 +4074,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive data from main scene
+scene("gameOver", ({ cash, level, carsCompleted, totalCars, narrative }) => { // Receive data from main scene
 
     resetRunHUD("Game Over", `Run ended on level ${level}`);
 
@@ -3938,17 +4164,26 @@ scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive da
         color(200, 200, 100)
     ]);
 
+    if (narrative) {
+        add([
+            text(narrative, { size: 20, width: width() - 220, align: "center" }),
+            pos(center().x, 460),
+            anchor("center"),
+            color(220, 220, 255)
+        ]);
+    }
+
     // Instructions
     add([
         text("Press SPACE to return to menu", { size: 24 }),
-        pos(center().x, 500),
+        pos(center().x, 540),
         anchor("center"),
         color(150, 150, 150)
     ]);
 
     add([
         text("Visit the Upgrades shop to spend your stars!", { size: 20 }),
-        pos(center().x, 540),
+        pos(center().x, 580),
         anchor("center"),
         color(100, 200, 255)
     ]);
@@ -3965,7 +4200,7 @@ scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive da
 
 // --- Upgrade Scene ---
 
-scene("upgradeScene", ({ nextLevel, cash }) => {
+scene("upgradeScene", ({ nextLevel, cash, narrative }) => {
 
     updateRunHUD({
         scene: "Upgrade Shop",
@@ -4028,6 +4263,15 @@ scene("upgradeScene", ({ nextLevel, cash }) => {
         anchor("center"),
 
     ]);
+
+    if (narrative) {
+        add([
+            text(narrative, { size: 18, width: width() - 260, align: "center" }),
+            pos(center().x, 145),
+            anchor("center"),
+            color(220, 220, 255)
+        ]);
+    }
 
 
 

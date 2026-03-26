@@ -24,10 +24,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Missing or Partial Features Compared to the Design Documents
 
-### 6. Narrative and rival/boss systems are absent
-
-- The narrative layer and rival valet ideas from `Roguelike Design.md:58` through `Roguelike Design.md:62` are not represented in `game.js`.
-
 ## Recommended Fix Order
 
 1. Decide whether purely local `localStorage` progression is acceptable long-term; if not, add validation/server authority before exposing competitive or shareable progression.
