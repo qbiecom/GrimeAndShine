@@ -920,21 +920,6 @@ scene("characters", () => {
 
         
 
-        // Cleanup when leaving scene
-
-        onSceneLeave(() => {
-
-            // Clean up event handlers
-            characters.forEach((_, index) => {
-                onKeyPress(String(index + 1), () => {});
-            });
-
-            onKeyPress("escape", () => {});
-
-        });
-
-
-
         onKeyPress("escape", () => {
 
             go("title");
@@ -1096,11 +1081,6 @@ scene("rules", () => {
 
     onKeyPress("escape", () => {
         go("title");
-    });
-
-    // Cleanup when leaving scene
-    onSceneLeave(() => {
-        onKeyPress("escape", () => {});
     });
 
 }); // End of rules scene
@@ -1294,14 +1274,6 @@ scene("permanentUpgrades", () => {
     // Cleanup
     onSceneLeave(() => {
         camPos(0, 0); // Reset camera when leaving
-        permanentUpgrades.forEach((_, index) => {
-            onKeyPress(String(index + 1), () => {});
-        });
-        onKeyPress("escape", () => {});
-        onKeyDown("up", () => {});
-        onKeyDown("down", () => {});
-        onKeyDown("arrow-up", () => {});
-        onKeyDown("arrow-down", () => {});
     });
 }); // End of permanentUpgrades scene
 
@@ -3521,11 +3493,6 @@ scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive da
         go("title");
     });
     
-    // Cleanup when leaving scene
-    onSceneLeave(() => {
-        // Clean up event handlers
-        onKeyPress("space", () => {});
-    });
 });
 
 
@@ -4003,26 +3970,6 @@ scene("upgradeScene", ({ nextLevel, cash }) => {
     }
 
     
-
-    // Cleanup when leaving scene
-
-    onSceneLeave(() => {
-
-        // Clean up event handlers
-
-        offeredChoices.forEach((_, index) => {
-
-            onKeyPress(String(index + 1), () => {});
-
-        });
-
-        onKeyPress("u", () => {});
-
-        onKeyPress("s", () => {});
-
-        onKeyPress("space", () => {});
-
-    });
 
 });
 

@@ -14,25 +14,19 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Medium-Priority Code Quality / Logic Issues
 
-### 1. Event-handler cleanup code is misleading and likely incorrect
-
-- Scenes register new handlers inside `onSceneLeave()` in `game.js:876` through `game.js:885`, `game.js:1246` through `game.js:1256`, `game.js:3504` through `game.js:3507`, and `game.js:3989` through `game.js:4005`.
-- Calling `onKeyPress(..., () => {})` during teardown does not remove an old handler; it registers another one.
-- If Kaboom does not fully isolate scene handlers, this can produce duplicate or ghost input behavior.
-
-### 2. Save data is parsed without schema/version validation
+### 1. Save data is parsed without schema/version validation
 
 - `SaveSystem.load()` directly parses whatever is in `localStorage` in `game.js:333` through `game.js:345`.
 - There is no migration step and no merge with defaults.
 - Corrupt or manually edited save payloads can leave missing fields such as `settings`, `statistics`, or `unlockedCharacters`, causing unstable behavior later.
 
-### 3. Level completion measures "interacted" cars, not completed service states
+### 2. Level completion measures "interacted" cars, not completed service states
 
 - Time-out completion uses `car.interacted` in `game.js:2463` through `game.js:2498`.
 - Full completion also counts `car.interacted` in `game.js:3201` through `game.js:3225`.
 - This matches the current one-action model, but it weakens design intent around actually servicing cars and makes some upgrade descriptions misleading.
 
-### 4. Debug UI is always visible in gameplay
+### 3. Debug UI is always visible in gameplay
 
 - `debugText` is added in `game.js:1937` through `game.js:1947` and constantly updated in `game.js:1951` through `game.js:1987`.
 - This looks like development instrumentation left enabled in production.
@@ -107,11 +101,10 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Recommended Fix Order
 
-1. Remove misleading scene cleanup handlers and rely on proper scene scoping or explicit unsubscribe support.
-2. Add save-data validation and migration so malformed `localStorage` entries fail safely.
-3. Remove the always-on debug UI from gameplay builds.
-4. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
-5. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
+1. Add save-data validation and migration so malformed `localStorage` entries fail safely.
+2. Remove the always-on debug UI from gameplay builds.
+3. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
+4. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
 
 ## Overall Assessment
 
