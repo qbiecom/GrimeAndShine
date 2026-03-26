@@ -23,13 +23,21 @@
                 </div>
             </header>
 
+            <section class="panel narrative-panel" aria-labelledby="narrative-title">
+                <div class="panel-heading narrative-heading">
+                    <h2 id="narrative-title">Shift Notes</h2>
+                    <span class="panel-badge">Persistent</span>
+                </div>
+                <p id="hud-narrative" class="narrative-copy" role="status" aria-live="polite">Run updates and story beats will appear here.</p>
+            </section>
+
             <div class="canvas-shell panel">
-                <canvas id="game-canvas" tabindex="0" aria-describedby="controls-summary run-state" aria-label="Grime and Shine game canvas"></canvas>
+                <canvas id="game-canvas" tabindex="0" aria-describedby="hud-narrative run-state" aria-label="Grime and Shine game canvas"></canvas>
                 <div id="canvas-status" class="sr-only" role="status" aria-live="polite"></div>
             </div>
         </section>
 
-        <aside class="hud-sidebar" aria-label="Run details and controls">
+        <aside class="hud-sidebar" aria-label="Run details">
             <section class="panel status-panel" aria-labelledby="run-panel-title">
                 <div class="panel-heading">
                     <h2 id="run-panel-title">Current Run</h2>
@@ -76,20 +84,6 @@
                 </div>
                 <p class="panel-copy" id="hud-buffs-empty">No buffs active.</p>
                 <ul id="hud-buffs" class="detail-list" aria-live="polite"></ul>
-            </section>
-
-            <section class="panel help-panel" aria-labelledby="controls-title">
-                <div class="panel-heading">
-                    <h2 id="controls-title">Controls</h2>
-                    <span class="panel-badge">Quick Help</span>
-                </div>
-                <p id="controls-summary" class="panel-copy">Movement and run status stay outside the canvas so the playfield remains readable.</p>
-                <dl class="controls-list">
-                    <div><dt>Move</dt><dd>Arrow keys</dd></div>
-                    <div><dt>Interact</dt><dd>E near a car</dd></div>
-                    <div><dt>Action choice</dt><dd>Number keys 1-3</dd></div>
-                    <div><dt>Back</dt><dd>Esc or Backspace</dd></div>
-                </dl>
             </section>
         </aside>
     </main>

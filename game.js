@@ -1548,6 +1548,7 @@ const hudElements = {
     sceneLabel: document.getElementById("scene-label"),
     runState: document.getElementById("run-state"),
     canvasStatus: document.getElementById("canvas-status"),
+    narrative: document.getElementById("hud-narrative"),
     cash: document.getElementById("hud-cash"),
     level: document.getElementById("hud-level"),
     timer: document.getElementById("hud-timer"),
@@ -1591,6 +1592,21 @@ function announceCanvasStatus(message) {
     setTextContent(hudElements.canvasStatus, message);
 }
 
+function setNarrativePanel(message) {
+    const fallback = "Run updates and story beats will appear here.";
+    setTextContent(hudElements.narrative, message && message.trim().length > 0 ? message : fallback);
+}
+
+function getCurrentRunNarrativeFallback() {
+    if (!currentLevelObjective) {
+        return currentLevel > 0
+            ? `Level ${currentLevel} is underway. Watch the lot and stay on pace.`
+            : "Run updates and story beats will appear here.";
+    }
+
+    return `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`;
+}
+
 function updateRunHUD(options = {}) {
     const {
         scene = "Menu",
@@ -1604,6 +1620,7 @@ function updateRunHUD(options = {}) {
         upgrades = [],
         buffs = [],
         runState = inRun ? "Run active" : "Run inactive",
+        narrative = "",
         announce = "",
     } = options;
 
@@ -1621,6 +1638,14 @@ function updateRunHUD(options = {}) {
 
     setStatusList(hudElements.upgrades, hudElements.upgradesEmpty, inRun ? upgrades : [], "No upgrades active.");
     setStatusList(hudElements.buffs, hudElements.buffsEmpty, inRun ? buffs : [], "No buffs active.");
+
+    if (typeof narrative === "string" && narrative.length > 0) {
+        setNarrativePanel(narrative);
+    } else if (inRun) {
+        setNarrativePanel(getCurrentRunNarrativeFallback());
+    } else if (!inRun) {
+        setNarrativePanel("");
+    }
 
     if (announce) {
         announceCanvasStatus(announce);
@@ -1962,9 +1987,31 @@ function queueNarrativeFeedback(lines, color = rgb(220, 220, 255), startDelay = 
         .filter((line) => typeof line === "string" && line.trim().length > 0)
         .forEach((line, index) => {
             wait(startDelay + (index * stepDelay), () => {
+                setNarrativePanel(line);
                 showFeedback(line, color);
             });
         });
+}
+
+function getLevelIntroNarrative() {
+    const introLines = [];
+
+    if (currentLevel === 1) {
+        introLines.push("Shift start. Rizzo tosses you the keys and tells you to earn your spot.");
+    }
+
+    if (currentNarrativeMilestone?.intro) {
+        introLines.push(currentNarrativeMilestone.intro);
+    }
+
+    if (currentEventState.encounter?.announce) {
+        introLines.push(currentEventState.encounter.announce);
+    } else if (currentEventState.name && currentEventState.name !== "None") {
+        const eventSummary = getEventSummary(currentEventState);
+        introLines.push(eventSummary ? `${currentEventState.name}: ${eventSummary}` : currentEventState.name);
+    }
+
+    return introLines.join(" ");
 }
 
 function applyEncounterToCars(encounter, cars) {
@@ -2472,6 +2519,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Loading level ${currentLevel}`,
+        narrative: `Level ${currentLevel} is loading. Build the lot and prep the next shift.`,
         announce: `Level ${currentLevel} started`,
     });
     
@@ -2555,6 +2603,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
+        narrative: getLevelIntroNarrative() || `${currentLevelObjective ? currentLevelObjective.name : `Level ${currentLevel}`}. ${getObjectiveSummary()}`,
     });
 
     // Apply selected character's ability
@@ -2584,6 +2633,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: `Level ${currentLevel} active`,
+        narrative: getLevelIntroNarrative() || `${currentLevelObjective ? currentLevelObjective.name : `Level ${currentLevel}`}. ${getObjectiveSummary()}`,
     });
 
 
@@ -3976,6 +4026,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         upgrades: playerUpgrades,
         buffs: currentBuffs.map((buff) => buff.name),
         runState: getRunStateLabel(),
+        narrative: getLevelIntroNarrative() || `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`,
         announce: `${currentLevelObjective.name}. ${getObjectiveSummary()}. ${getParkingLayoutSummary()}`,
     });
 
@@ -4207,6 +4258,7 @@ scene("upgradeScene", ({ nextLevel, cash, narrative }) => {
         inRun: false,
         cash,
         runState: `Preparing level ${nextLevel}`,
+        narrative: narrative || `Level ${nextLevel - 1} is resolved. Choose an upgrade for the next shift.`,
         announce: `Upgrade shop opened for level ${nextLevel}`,
     });
 

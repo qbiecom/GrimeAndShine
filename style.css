@@ -63,6 +63,21 @@ body {
     gap: 16px;
 }
 
+.narrative-panel {
+    padding: 18px 20px;
+}
+
+.narrative-heading {
+    margin-bottom: 12px;
+}
+
+.narrative-copy {
+    min-height: 4.8em;
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 1rem;
+}
+
 .eyebrow {
     margin: 0 0 8px;
     font-size: 0.85rem;
@@ -129,11 +144,11 @@ h2 {
 .hud-sidebar {
     display: grid;
     gap: 18px;
+    align-content: start;
 }
 
 .status-panel,
 .list-panel,
-.help-panel,
 .play-header {
     padding: 18px 20px;
 }
@@ -173,8 +188,7 @@ h2 {
     grid-column: 1 / -1;
 }
 
-.stat-card dt,
-.controls-list dt {
+.stat-card dt {
     color: var(--muted);
     font-size: 0.82rem;
     text-transform: uppercase;
@@ -212,29 +226,6 @@ h2 {
     display: none;
 }
 
-.controls-list {
-    margin-top: 16px;
-    display: grid;
-    gap: 12px;
-}
-
-.controls-list div {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.controls-list div:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-}
-
-.controls-list dd {
-    text-align: right;
-}
-
 .sr-only {
     position: absolute;
     width: 1px;
@@ -254,10 +245,6 @@ h2 {
 
     .hud-sidebar {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .help-panel {
-        grid-column: 1 / -1;
     }
 }
 
@@ -285,17 +272,12 @@ h2 {
     .canvas-shell,
     .status-panel,
     .list-panel,
-    .help-panel,
+    .narrative-panel,
     .play-header {
         padding: 14px;
     }
 
-    .controls-list div {
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .controls-list dd {
-        text-align: left;
+    .narrative-copy {
+        min-height: 0;
     }
 }
