@@ -46,6 +46,41 @@ const EVENT_RAIN_VISIBILITY_RADIUS = 230;
 const ENCOUNTER_PRIORITY_BONUS_CASH = 20;
 const ENCOUNTER_PRIORITY_BONUS_TIME = 8;
 
+const PLAYER_SPRITE_SIZE = 32;
+const PLAYER_ANIMATION_FPS = 8;
+const PLAYER_DIRECTIONS = {
+    down: "down",
+    left: "left",
+    right: "right",
+    up: "up",
+};
+const PLAYER_ANIMATION_MAP = {
+    down: {
+        idle: 1,
+        walk: [0, 1, 2, 1],
+    },
+    left: {
+        idle: 7,
+        walk: [6, 7, 8, 7],
+    },
+    right: {
+        idle: 13,
+        walk: [12, 13, 14, 13],
+    },
+    up: {
+        idle: 19,
+        walk: [18, 19, 20, 19],
+    },
+};
+
+function getPlayerAnimationDirection(direction) {
+    return PLAYER_ANIMATION_MAP[direction] ? direction : PLAYER_DIRECTIONS.down;
+}
+
+function getPlayerAnimationName(state, direction) {
+    return `${state}-${getPlayerAnimationDirection(direction)}`;
+}
+
 // Car Type Definitions (Adjusted for Kaboom - size might need tweaking)
 /**
  * Each car type has unique characteristics that affect gameplay:
@@ -772,7 +807,24 @@ Object.entries(CAR_SHEET_CONFIG).forEach(([carType, path]) => {
     });
 });
 
-loadSprite("player", "art/player_temp.png");
+loadSprite("player", "art/character.png", {
+    sliceX: 6,
+    sliceY: 6,
+    anims: Object.entries(PLAYER_ANIMATION_MAP).reduce((anims, [direction, frames]) => {
+        anims[getPlayerAnimationName("idle", direction)] = {
+            from: frames.idle,
+            to: frames.idle,
+            speed: 1,
+            loop: true,
+        };
+        anims[getPlayerAnimationName("walk", direction)] = {
+            frames: frames.walk,
+            speed: PLAYER_ANIMATION_FPS,
+            loop: true,
+        };
+        return anims;
+    }, {}),
+});
 
 loadSprite("titleLogo", "art/title.png"); // Load the title logo
 
@@ -2697,11 +2749,29 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     const playerSpeed = CONFIG.PLAYER_SPEED * playerStats.moveSpeedMultiplier;
 
-    // Player size (scaled down from 1024x1024)
+    // Player size (scaled up from 32x32 sprite frame)
 
     const playerSize = CONFIG.PLAYER_SIZE;
 
-    const playerScale = playerSize / 1024;
+    const playerScale = playerSize / PLAYER_SPRITE_SIZE;
+
+    let playerFacing = PLAYER_DIRECTIONS.down;
+
+    let playerAnimationState = "idle";
+
+    const setPlayerAnimation = (state, direction = playerFacing) => {
+        const safeDirection = getPlayerAnimationDirection(direction);
+        const animationName = getPlayerAnimationName(state, safeDirection);
+
+        playerFacing = safeDirection;
+
+        if (playerAnimationState === state && player.curAnim() === animationName) {
+            return;
+        }
+
+        playerAnimationState = state;
+        player.play(animationName);
+    };
 
 
 
@@ -2723,16 +2793,34 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     ]);
 
+    setPlayerAnimation("idle", playerFacing);
+
 
 
     // Player Movement with direct position updates instead of move()
 
     const movePlayer = (dx, dy) => {
         if (!isInteracting && !actionInProgress) {
+            if (dx !== 0 || dy !== 0) {
+                if (Math.abs(dx) >= Math.abs(dy)) {
+                    setPlayerAnimation("walk", dx < 0 ? PLAYER_DIRECTIONS.left : PLAYER_DIRECTIONS.right);
+                } else {
+                    setPlayerAnimation("walk", dy < 0 ? PLAYER_DIRECTIONS.up : PLAYER_DIRECTIONS.down);
+                }
+            }
             player.pos.x += dx * playerSpeed * dt();
             player.pos.y += dy * playerSpeed * dt();
         }
     };
+
+    onKeyRelease(["a", "d", "w", "s", "left", "right", "up", "down", "arrow-left", "arrow-right", "arrow-up", "arrow-down"], () => {
+        if (!isKeyDown("a") && !isKeyDown("left") && !isKeyDown("arrow-left")
+            && !isKeyDown("d") && !isKeyDown("right") && !isKeyDown("arrow-right")
+            && !isKeyDown("w") && !isKeyDown("up") && !isKeyDown("arrow-up")
+            && !isKeyDown("s") && !isKeyDown("down") && !isKeyDown("arrow-down")) {
+            setPlayerAnimation("idle");
+        }
+    });
 
     onKeyDown("a", () => {
 
@@ -2836,6 +2924,10 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         if (currentEventState.rainstorm) {
             applyRainstormVisibility(player, carsInLevel);
+        }
+
+        if ((isInteracting || actionInProgress) && playerAnimationState !== "idle") {
+            setPlayerAnimation("idle");
         }
 
     });
