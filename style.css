@@ -72,10 +72,32 @@ body {
 }
 
 .narrative-copy {
-    min-height: 4.8em;
     color: var(--text);
     line-height: 1.6;
     font-size: 1rem;
+}
+
+.narrative-list {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+    display: grid;
+    gap: 10px;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.narrative-list li {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.narrative-list:empty {
+    display: none;
 }
 
 .eyebrow {
@@ -277,7 +299,4 @@ h2 {
         padding: 14px;
     }
 
-    .narrative-copy {
-        min-height: 0;
-    }
 }

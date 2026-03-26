@@ -1549,6 +1549,7 @@ const hudElements = {
     runState: document.getElementById("run-state"),
     canvasStatus: document.getElementById("canvas-status"),
     narrative: document.getElementById("hud-narrative"),
+    narrativeEmpty: document.getElementById("hud-narrative-empty"),
     cash: document.getElementById("hud-cash"),
     level: document.getElementById("hud-level"),
     timer: document.getElementById("hud-timer"),
@@ -1563,6 +1564,43 @@ const hudElements = {
 function setTextContent(element, value) {
     if (element) {
         element.textContent = value;
+    }
+}
+
+function appendNarrativePanelEntry(message) {
+    if (!hudElements.narrative || typeof message !== "string") {
+        return;
+    }
+
+    const trimmedMessage = message.trim();
+    if (trimmedMessage.length === 0) {
+        return;
+    }
+
+    const lastEntry = hudElements.narrative.lastElementChild;
+    if (lastEntry && lastEntry.textContent === trimmedMessage) {
+        return;
+    }
+
+    const entry = document.createElement("li");
+    entry.textContent = trimmedMessage;
+    hudElements.narrative.appendChild(entry);
+
+    if (hudElements.narrativeEmpty) {
+        hudElements.narrativeEmpty.hidden = true;
+    }
+
+    hudElements.narrative.scrollTop = hudElements.narrative.scrollHeight;
+}
+
+function clearNarrativePanel() {
+    if (hudElements.narrative) {
+        hudElements.narrative.innerHTML = "";
+    }
+
+    if (hudElements.narrativeEmpty) {
+        hudElements.narrativeEmpty.hidden = false;
+        hudElements.narrativeEmpty.textContent = "Run updates and story beats will appear here.";
     }
 }
 
@@ -1593,8 +1631,12 @@ function announceCanvasStatus(message) {
 }
 
 function setNarrativePanel(message) {
-    const fallback = "Run updates and story beats will appear here.";
-    setTextContent(hudElements.narrative, message && message.trim().length > 0 ? message : fallback);
+    if (message && message.trim().length > 0) {
+        appendNarrativePanelEntry(message);
+        return;
+    }
+
+    clearNarrativePanel();
 }
 
 function getCurrentRunNarrativeFallback() {
@@ -1653,6 +1695,7 @@ function updateRunHUD(options = {}) {
 }
 
 function resetRunHUD(scene = "Menu", runState = "Run inactive") {
+    clearNarrativePanel();
     updateRunHUD({ scene, runState, inRun: false });
 }
 
