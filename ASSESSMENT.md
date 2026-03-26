@@ -6,85 +6,33 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Executive Summary
 
-- The project has several likely runtime-breaking issues in core gameplay flow, especially around asset loading, upgrade effects, and scene-local helper usage.
-- The browser shell is functional but weak from a supply-chain and hardening perspective because it loads a third-party engine from a CDN without integrity protection and defines no Content Security Policy.
+- The most immediate runtime issues in core gameplay flow have been addressed, but several state-management and maintainability issues still remain.
+- The browser shell is functional but still weak from a supply-chain perspective because it loads a third-party engine from a CDN without integrity protection.
 - The game implements the broad loop of moving around a lot, servicing cars, leveling up, and earning persistent stars, but many of the stronger roguelike/roguelite design goals are still partial or absent.
 
 ## High-Priority Code Issues
 
-### 1. Kaboom is initialized with a missing canvas selector
-
-- `game.js:12` passes `canvas: document.querySelector("#game-canvas")`.
-- `index.html:28` through `index.html:33` contains no element with `id="game-canvas"`.
-- Best case, Kaboom ignores `null` and creates its own canvas. Worst case, startup fails or behaves inconsistently across versions/browsers.
-
-### 2. Most car types do not have the alternate sprites the game uses at runtime
-
-- Only `sedan_*` and `sportscar_*` variants are loaded in `game.js:464` through `game.js:473`.
-- Spawn logic switches cars to `${carType}_dirty` or `${carType}_vacuum` in `game.js:2124` through `game.js:2132`.
-- Completion switches every interacted car to `${carType}_clean` in `game.js:2843` through `game.js:2844`.
-- For `compact`, `suv`, `pickup`, `van`, `luxury`, and `junker`, this is a likely missing-asset runtime failure.
-
-### 3. Multiple movement upgrades reference `playerSpeed`, but `playerSpeed` is not in scope
-
-- Upgrade effects in `game.js:1445`, `game.js:1463`, `game.js:1477`, and `game.js:1495` mutate `playerSpeed`.
-- Movement speed is actually declared as a scene-local constant at `game.js:1845`.
-- When any of these upgrade effects run, they are likely to throw `ReferenceError: playerSpeed is not defined`.
-
-### 4. `showFeedback()` is called from the upgrade scene, but it only exists inside the main gameplay scene
-
-- `upgradeScene` calls `showFeedback()` in `game.js:3870` and `game.js:3913`.
-- `showFeedback()` is defined inside `scene("main", ...)` at `game.js:3337` through `game.js:3369`.
-- This should throw at runtime the first time the player cannot afford an upgrade or unlocks a character from the upgrade scene.
-
-### 5. Action restrictions are enforced by UI, not by gameplay logic
-
-- The interaction menu only shows valid actions for a car state in `game.js:2608` through `game.js:2616`.
-- Input handlers still allow all three actions whenever a target car is selected in `game.js:3309` through `game.js:3324`.
-- `performInteraction()` checks only `car.interacted` and `actionInProgress` in `game.js:2752` through `game.js:2755`; it does not validate whether the chosen action is allowed for that car.
-- A player can open the menu on a cleaning-only car and still press `1` or `3`, bypassing the intended decision model.
-
-### 6. Permanent upgrades can stack incorrectly across sessions and runs
-
-- Purchased permanent upgrades mutate `playerStats` immediately in the shop via their `effect()` functions.
-- They are applied again at run start in `game.js:1766` through `game.js:1777`.
-- `playerStats` is only reset on the game-over path in `game.js:3488` through `game.js:3498`.
-- Result: bonuses can be double-applied in the same browser session, and repeated level-1 restarts can produce inflated permanent bonuses.
-
-### 7. Character selection is not persisted even though save data has a setting for it
-
-- Save structure defines `settings.selectedCharacter` in `game.js:324` through `game.js:326`.
-- The characters scene only updates the in-memory `selectedCharacterId` in `game.js:817` through `game.js:819` and `game.js:860` through `game.js:863`.
-- `selectedCharacterId` is initialized to `"base"` in `game.js:1750` through `game.js:1751` and is never loaded from save data.
-- Reloading the page loses the player’s selected character.
-
-### 8. "End run and unlock character" does not actually end the run cleanly
-
-- The upgrade scene advertises `[U] End run and unlock character` in `game.js:3888`.
-- The handler immediately starts a new run with `go("main", { level: 1, cash: cash })` in `game.js:3917`.
-- This skips a clear run-complete/menu transition, and it interacts poorly with the already fragile stat reset logic.
-
 ## Medium-Priority Code Quality / Logic Issues
 
-### 9. Event-handler cleanup code is misleading and likely incorrect
+### 1. Event-handler cleanup code is misleading and likely incorrect
 
 - Scenes register new handlers inside `onSceneLeave()` in `game.js:876` through `game.js:885`, `game.js:1246` through `game.js:1256`, `game.js:3504` through `game.js:3507`, and `game.js:3989` through `game.js:4005`.
 - Calling `onKeyPress(..., () => {})` during teardown does not remove an old handler; it registers another one.
 - If Kaboom does not fully isolate scene handlers, this can produce duplicate or ghost input behavior.
 
-### 10. Save data is parsed without schema/version validation
+### 2. Save data is parsed without schema/version validation
 
 - `SaveSystem.load()` directly parses whatever is in `localStorage` in `game.js:333` through `game.js:345`.
 - There is no migration step and no merge with defaults.
 - Corrupt or manually edited save payloads can leave missing fields such as `settings`, `statistics`, or `unlockedCharacters`, causing unstable behavior later.
 
-### 11. Level completion measures "interacted" cars, not completed service states
+### 3. Level completion measures "interacted" cars, not completed service states
 
 - Time-out completion uses `car.interacted` in `game.js:2463` through `game.js:2498`.
 - Full completion also counts `car.interacted` in `game.js:3201` through `game.js:3225`.
 - This matches the current one-action model, but it weakens design intent around actually servicing cars and makes some upgrade descriptions misleading.
 
-### 12. Debug UI is always visible in gameplay
+### 4. Debug UI is always visible in gameplay
 
 - `debugText` is added in `game.js:1937` through `game.js:1947` and constantly updated in `game.js:1951` through `game.js:1987`.
 - This looks like development instrumentation left enabled in production.
@@ -97,18 +45,13 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - There is no `integrity` or `crossorigin` attribute.
 - If the CDN asset is tampered with, arbitrary JavaScript runs in the page.
 
-### 2. No Content Security Policy is present
-
-- `index.html` defines no CSP meta tag, and there is no evidence of server-side CSP guidance.
-- For a static game, a restrictive CSP is one of the main hardening measures against script injection and compromised dependencies.
-
-### 3. All progression and high-score state is fully client-trusted
+### 2. All progression and high-score state is fully client-trusted
 
 - Save data for stars, unlocks, permanent upgrades, and high scores lives entirely in `localStorage` in `game.js:305` through `game.js:454`.
 - This is acceptable for a local single-player prototype, but it means progression and scores are trivially editable from devtools.
 - If the project later exposes leaderboards or achievements, current saved data must be treated as untrusted.
 
-### 4. Local save tampering can break game state, not just cheat progression
+### 3. Local save tampering can break game state, not just cheat progression
 
 - The game assumes loaded save fields are structurally valid.
 - A malformed save can trigger logic errors, stale unlock states, or broken upgrade requirements rather than failing safely.
@@ -164,14 +107,11 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Recommended Fix Order
 
-1. Remove the canvas mismatch or add the expected canvas element in `index.html` and validate startup.
-2. Fix sprite-state handling so all car types either have valid alternate assets or fall back safely.
-3. Replace `playerSpeed` upgrade mutations with a real persistent movement stat in `playerStats`.
-4. Move `showFeedback()` to shared scope or stop calling it outside `scene("main")`.
-5. Enforce valid car actions in logic, not only in the interaction menu UI.
-6. Refactor run-state reset so permanent upgrades are applied exactly once per run.
-7. Persist and reload selected character through `SaveSystem.settings`.
-8. Harden the page with SRI/CSP and add save-data validation.
+1. Remove misleading scene cleanup handlers and rely on proper scene scoping or explicit unsubscribe support.
+2. Add save-data validation and migration so malformed `localStorage` entries fail safely.
+3. Remove the always-on debug UI from gameplay builds.
+4. Add Subresource Integrity to the Kaboom CDN load or vend the dependency locally.
+5. Implement WASD movement and the higher-priority missing gameplay features from the design docs.
 
 ## Overall Assessment
 

@@ -504,6 +504,7 @@ const CAR_SHEET_CONFIG = {
     junker: "cars/junker.png",
     van: "cars/van.png",
     pickup: "cars/pickup.png",
+    luxury: "cars/luxury.png",
 };
 
 const CAR_STATE_FRAMES = {
@@ -1363,6 +1364,14 @@ let activeBuffs = []; // Buffs purchased in shop, applied at start of next level
 let purchasedUpgradeIds = []; // IDs of permanent upgrades to prevent duplicates
 let currentBuffs = []; // Buffs active in current level
 
+function resetRunState() {
+    playerStats = createDefaultPlayerStats();
+    playerUpgrades = [];
+    activeBuffs = [];
+    purchasedUpgradeIds = [];
+    currentBuffs = [];
+}
+
 
 
 // List of possible temporary buffs/items
@@ -1815,11 +1824,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     
     // Apply permanent upgrades at start of run
     if (isNewRun) {
-        playerStats = createDefaultPlayerStats();
-        playerUpgrades = [];
-        activeBuffs = [];
-        currentBuffs = [];
-        purchasedUpgradeIds = [];
+        resetRunState();
 
         const savedData = SaveSystem.load();
         
@@ -3512,9 +3517,7 @@ scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive da
 
     // Go back to title scene on space press
     onKeyPress("space", () => {
-        // Reset player stats for next run
-        playerStats = createDefaultPlayerStats();
-        playerUpgrades = [];
+        resetRunState();
         go("title");
     });
     
@@ -3930,9 +3933,8 @@ scene("upgradeScene", ({ nextLevel, cash }) => {
 
             showFeedback(`Unlocked ${character.name}!`, rgb(255, 215, 0));
 
-            // End run: return to title or restart game
-
-            go("main", { level: 1, cash: cash });
+            resetRunState();
+            go("title");
 
         };
 
