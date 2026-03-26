@@ -2974,6 +2974,30 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     function completeAction(car, actionType, modifier) {
 
+        const tryGrantSearchBuff = () => {
+            let buffChance = 0.12;
+
+            if (car.specialProperty === "Hidden Compartment") {
+                buffChance += 0.13;
+            } else if (car.specialProperty === "VIP Owner") {
+                buffChance += 0.08;
+            }
+
+            if (Math.random() >= buffChance) {
+                return;
+            }
+
+            const foundBuff = choose(tempBuffs);
+            currentBuffs.push(foundBuff);
+            foundBuff.apply();
+            markUIDirty('inventory');
+
+            console.log(`Found temporary buff: ${foundBuff.name}`);
+            wait(0.5, () => {
+                showFeedback(`Found ${foundBuff.name}!`, rgb(255, 215, 0));
+            });
+        };
+
         // Process action results
 
         switch (actionType) {
@@ -3062,6 +3086,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                         showFeedback(`Searched. +$${cash}`, rgb(200, 200, 200)); // Gray for neutral
 
                     }
+
+                    tryGrantSearchBuff();
 
                 }
 

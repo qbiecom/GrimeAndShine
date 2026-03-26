@@ -42,38 +42,32 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - The implementation uses a fixed hard-coded parking grid in `game.js:197` through `game.js:235`.
 - Only car placement order and car type selection vary.
 
-### 2. Search does not find temporary items or buffs during play
-
-- The design mentions finding temporary items or buffs while searching cars in `Roguelike Design.md:32`.
-- Search results in `game.js:2885` through `game.js:2968` only yield cash, nothing, or alarms.
-- Temporary buffs exist, but only as upgrade-scene purchases in `game.js:1317` through `game.js:1375`.
-
-### 3. Random events are only partially implemented
+### 2. Random events are only partially implemented
 
 - The design calls out richer event effects such as reduced visibility, customer priority pressure, and continued arrivals in rush hour in `Roguelike Design.md:38` through `Roguelike Design.md:42`.
 - Current events in `game.js:1379` through `game.js:1413` are limited.
 - `Customer Demands` is only a placeholder comment in `game.js:1405` through `game.js:1409`.
 - `Rainstorm` speeds cleaning but does not alter visibility or targeting.
 
-### 4. Roguelike "one action per car" is undermined by current and planned logic
+### 3. Roguelike "one action per car" is undermined by current and planned logic
 
 - The design emphasizes one strategic action per car in `Roguelike Design.md:11` through `Roguelike Design.md:16`.
 - Current input already allows invalid off-menu actions as described earlier.
 - The `Multitasker` upgrade in `game.js:1525` through `game.js:1530` explicitly promises all three actions on one car, which changes a core rule rather than extending it carefully.
 
-### 5. Permanent upgrade system is narrower than the design vision
+### 4. Permanent upgrade system is narrower than the design vision
 
 - The design mentions unlocking broader tool types and abilities such as steam cleaners, leaf blowers, time extensions, and rare-item boosts in `Roguelike Design.md:33` through `Roguelike Design.md:47`.
 - Permanent upgrades in `game.js:1548` through `game.js:1616` mainly cover timers, stat multipliers, starting cash, and character unlocks.
 - Specialized tools exist only as run upgrades, not as clear permanent unlock paths.
 
-### 6. Difficulty scaling is present, but challenge variety is still shallow
+### 5. Difficulty scaling is present, but challenge variety is still shallow
 
 - The game does reduce time and add more cars in `game.js:1786` through `game.js:1799` and `game.js:1993` through `game.js:1997`.
 - Special properties also expand by level in `game.js:2157` through `game.js:2174`.
 - Missing pieces include more varied layouts, stronger event mechanics, arrival pressure, boss/rival encounters, and higher-level objective variation described in `Roguelike Design.md:49` through `Roguelike Design.md:62`.
 
-### 7. Narrative and rival/boss systems are absent
+### 6. Narrative and rival/boss systems are absent
 
 - The narrative layer and rival valet ideas from `Roguelike Design.md:58` through `Roguelike Design.md:62` are not represented in `game.js`.
 
