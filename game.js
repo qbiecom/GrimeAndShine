@@ -2759,22 +2759,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     let playerAnimationState = "idle";
 
-    const setPlayerAnimation = (state, direction = playerFacing) => {
-        const safeDirection = getPlayerAnimationDirection(direction);
-        const animationName = getPlayerAnimationName(state, safeDirection);
-
-        playerFacing = safeDirection;
-
-        if (playerAnimationState === state && player.curAnim() === animationName) {
-            return;
-        }
-
-        playerAnimationState = state;
-        player.play(animationName);
-    };
-
-
-
     const player = add([
 
         sprite("player"), // Use the player sprite
@@ -2792,6 +2776,24 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         "player", // Tag for identifying the player object
 
     ]);
+
+    const setPlayerAnimation = (state, direction = playerFacing) => {
+        const safeDirection = getPlayerAnimationDirection(direction);
+        const animationName = getPlayerAnimationName(state, safeDirection);
+        const currentAnimation = typeof player.curAnim === "function" ? player.curAnim() : null;
+
+        playerFacing = safeDirection;
+
+        if (playerAnimationState === state && currentAnimation === animationName) {
+            return;
+        }
+
+        playerAnimationState = state;
+
+        if (typeof player.play === "function") {
+            player.play(animationName);
+        }
+    };
 
     setPlayerAnimation("idle", playerFacing);
 
