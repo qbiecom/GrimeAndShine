@@ -22,12 +22,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Security Review
 
-### 1. Third-party engine is loaded from a CDN without Subresource Integrity
-
-- `index.html:15` loads Kaboom from jsDelivr.
-- There is no `integrity` or `crossorigin` attribute.
-- If the CDN asset is tampered with, arbitrary JavaScript runs in the page.
-
 ### 2. All progression and high-score state is fully client-trusted
 
 - Save data for stars, unlocks, permanent upgrades, and high scores lives entirely in `localStorage` in `game.js:305` through `game.js:454`.
