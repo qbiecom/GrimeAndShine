@@ -818,7 +818,8 @@ loadSprite("player", "art/character.png", {
             loop: true,
         };
         anims[getPlayerAnimationName("walk", direction)] = {
-            frames: frames.walk,
+            from: frames.walk[0],
+            to: frames.walk[2],
             speed: PLAYER_ANIMATION_FPS,
             loop: true,
         };
