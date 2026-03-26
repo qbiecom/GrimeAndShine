@@ -1246,7 +1246,7 @@ scene("rules", () => {
 
         "• Each level rolls an objective, such as clean jobs or interior jobs, shown in the HUD.",
 
-        "• Complete the level by hitting the objective target, or survive to the buzzer with enough serviced cars to satisfy that target.",
+        "• Each level resolves when the timer expires; hit the objective target before the buzzer to pass.",
 
         "• After each level, choose an upgrade to improve your skills.",
 
@@ -1831,7 +1831,7 @@ const levelObjectives = [
         id: "clean-focus",
         name: "Exterior Detail Sweep",
         description: "Finish enough clean jobs this level.",
-        summary: ({ requiredCount, progressCount }) => `Complete ${progressCount}/${requiredCount} clean jobs to clear the level.`,
+        summary: ({ requiredCount, progressCount }) => `Complete ${progressCount}/${requiredCount} clean jobs before time runs out.`,
         isCarEligible: (car) => car.needsCleaning,
         getProgressCount: (cars) => cars.filter((car) => car.completed && car.completedAction === "clean").length,
         shouldCompleteLevel: ({ cars, requiredCount }) => cars.filter((car) => car.completed && car.completedAction === "clean").length >= requiredCount,
@@ -1840,7 +1840,7 @@ const levelObjectives = [
         id: "interior-focus",
         name: "Interior Pickup",
         description: "Finish enough search or vacuum jobs this level.",
-        summary: ({ requiredCount, progressCount }) => `Complete ${progressCount}/${requiredCount} interior jobs (search or vacuum).`,
+        summary: ({ requiredCount, progressCount }) => `Complete ${progressCount}/${requiredCount} interior jobs before time runs out.`,
         isCarEligible: (car) => car.needsVacuumOrSearch,
         getProgressCount: (cars) => cars.filter((car) => car.completed && (car.completedAction === "search" || car.completedAction === "vacuum")).length,
         shouldCompleteLevel: ({ cars, requiredCount }) => cars.filter((car) => car.completed && (car.completedAction === "search" || car.completedAction === "vacuum")).length >= requiredCount,
@@ -1911,6 +1911,10 @@ function getRunStateLabel() {
     const arrivalLabel = getArrivalPressureLabel();
     if (arrivalLabel) {
         return arrivalLabel;
+    }
+
+    if (currentLevelObjective && currentLevelObjective.shouldCompleteLevel()) {
+        return `Objective met - survive to ${Math.max(0, Math.ceil(timeLeft))}s`;
     }
 
     return `Level ${currentLevel} active`;
@@ -3664,21 +3668,13 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     }
 
-    // Function to check if all cars have been serviced and end level if so
+    // Function to react to objective progress without ending the level early
 
     function checkLevelComplete() {
 
         if (currentLevelObjective && currentLevelObjective.shouldCompleteLevel()) {
 
-            console.log(`Level ${currentLevel} complete! Objective cleared.`);
-
-            if (timerInterval) clearInterval(timerInterval); // Stop timer immediately
-
-            timerInterval = null;
-
-            // Go to the upgrade scene
-
-            go("upgradeScene", { nextLevel: currentLevel + 1, cash: currentCash });
+            console.log(`Level ${currentLevel} objective met. Waiting for timeout to resolve the run.`);
 
         }
 
