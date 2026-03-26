@@ -1213,7 +1213,7 @@ scene("permanentUpgrades", () => {
     ]);
 
     add([
-        text("Upgrades persist across all runs!", { size: 20 }),
+        text("Unlock permanent tools, time boosts, and passive abilities.", { size: 20 }),
         pos(center().x, 110),
         anchor("center"),
         color(200, 200, 200),
@@ -1267,6 +1267,7 @@ scene("permanentUpgrades", () => {
         const isOwned = savedData.permanentUpgrades.includes(upgrade.id);
         const canAfford = currentStars >= upgrade.cost;
         const meetsRequirements = !upgrade.requires || savedData.permanentUpgrades.includes(upgrade.requires);
+        const titleSuffix = upgrade.category ? ` - ${upgrade.category}` : "";
 
         // Upgrade container
         const container = add([
@@ -1281,7 +1282,7 @@ scene("permanentUpgrades", () => {
 
         // Upgrade name
         add([
-            text(`[${index + 1}] ${upgrade.name}`, { size: 22 }),
+            text(`[${index + 1}] ${upgrade.name}${titleSuffix}`, { size: 22 }),
             pos(70, yPos + 15),
             color(isOwned ? rgb(0, 255, 0) : rgb(255, 255, 255))
         ]);
@@ -1498,6 +1499,7 @@ function createDefaultPlayerStats() {
         // Reward multipliers (higher = better)
         searchLootMultiplier: 1.0, // Higher is better
         searchAlarmModifier: 1.0, // Lower is better (reduces alarm chance)
+        rareItemChanceMultiplier: 1.0,
 
         // Base action times (in seconds)
         baseCleanTime: 5,
@@ -1788,6 +1790,7 @@ const permanentUpgrades = [
         name: "Extra Time I",
         description: "Start each level with +5 seconds",
         cost: 50,
+        category: "Time Extension",
         effect: () => { playerStats.timeBonus += 5; }
     },
     {
@@ -1796,6 +1799,7 @@ const permanentUpgrades = [
         description: "Start each level with +10 seconds",
         cost: 150,
         requires: "perm_time_1",
+        category: "Time Extension",
         effect: () => { playerStats.timeBonus += 10; }
     },
     {
@@ -1803,6 +1807,7 @@ const permanentUpgrades = [
         name: "Quick Start",
         description: "Start with 10% faster cleaning and vacuuming",
         cost: 75,
+        category: "Core Stats",
         effect: () => {
             playerStats.cleanSpeedMultiplier *= 0.9;
             playerStats.vacuumSpeedMultiplier *= 0.9;
@@ -1813,6 +1818,7 @@ const permanentUpgrades = [
         name: "Lucky Finder",
         description: "Start with 15% better loot from searches",
         cost: 75,
+        category: "Passive Ability",
         effect: () => { playerStats.searchLootMultiplier *= 1.15; }
     },
     {
@@ -1820,6 +1826,7 @@ const permanentUpgrades = [
         name: "Stealth Training",
         description: "Start with 20% reduced alarm chance",
         cost: 100,
+        category: "Passive Ability",
         effect: () => { playerStats.searchAlarmModifier *= 0.8; }
     },
     {
@@ -1827,13 +1834,58 @@ const permanentUpgrades = [
         name: "Nest Egg",
         description: "Start each run with $50",
         cost: 100,
+        category: "Economy",
         effect: () => { /* Applied at run start */ }
+    },
+    {
+        id: "perm_tool_steam_cleaner",
+        name: "Steam Cleaner Bay",
+        description: "Start every run with the Steam Cleaner tool unlocked. Clean actions also pay an interior-service bonus on cars that still need inside work.",
+        cost: 125,
+        category: "Tool Unlock",
+        effect: () => {
+            playerStats.steamCleanerActive = true;
+            if (!playerUpgrades.includes("Steam Cleaner")) {
+                playerUpgrades.push("Steam Cleaner");
+            }
+        }
+    },
+    {
+        id: "perm_tool_magnet_vac",
+        name: "Magnetic Vacuum Rig",
+        description: "Start every run with the Magnetic Vacuum tool unlocked. Vacuum actions pull in extra loose change.",
+        cost: 150,
+        category: "Tool Unlock",
+        effect: () => {
+            playerStats.magnetVacActive = true;
+            if (!playerUpgrades.includes("Magnetic Vacuum")) {
+                playerUpgrades.push("Magnetic Vacuum");
+            }
+        }
+    },
+    {
+        id: "perm_time_3",
+        name: "Extra Time III",
+        description: "Start each level with +15 more seconds, for a total of +30 seconds with the full clock chain.",
+        cost: 300,
+        requires: "perm_time_2",
+        category: "Time Extension",
+        effect: () => { playerStats.timeBonus += 15; }
+    },
+    {
+        id: "perm_rare_item_1",
+        name: "Rare Item Radar",
+        description: "Searches are 25% more likely to uncover temporary buffs and high-value loot outcomes in cars.",
+        cost: 175,
+        category: "Passive Ability",
+        effect: () => { playerStats.rareItemChanceMultiplier *= 1.25; }
     },
     {
         id: "perm_char_unlock_1",
         name: "Unlock Speedster",
         description: "Unlock the Speedster character",
         cost: 200,
+        category: "Character",
         effect: () => { SaveSystem.unlockCharacter('speedster'); }
     },
     {
@@ -1841,6 +1893,7 @@ const permanentUpgrades = [
         name: "Unlock Lucky",
         description: "Unlock the Lucky character",
         cost: 400,
+        category: "Character",
         effect: () => { SaveSystem.unlockCharacter('lucky'); }
     },
     {
@@ -1848,6 +1901,7 @@ const permanentUpgrades = [
         name: "Unlock Ghost",
         description: "Unlock the Ghost character",
         cost: 600,
+        category: "Character",
         effect: () => { SaveSystem.unlockCharacter('ghost'); }
     }
 ];
@@ -3158,7 +3212,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                 buffChance += 0.08;
             }
 
-            if (Math.random() >= buffChance) {
+            buffChance *= playerStats.rareItemChanceMultiplier || 1;
+
+            if (Math.random() >= Math.min(buffChance, 0.9)) {
                 return;
             }
 
@@ -3201,7 +3257,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
                         console.log("Suspicious car: Higher risk, higher reward!");
                     }
 
-                    const lootChance = Math.min(baseLootChance * modifier, 0.9);
+                    const lootChance = Math.min(baseLootChance * modifier * (playerStats.rareItemChanceMultiplier || 1), 0.95);
 
                     const alarmChance = Math.min(baseAlarmChance * modifier, 0.7);
 

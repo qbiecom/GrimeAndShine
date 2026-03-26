@@ -30,12 +30,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 - The implementation uses a fixed hard-coded parking grid in `game.js:197` through `game.js:235`.
 - Only car placement order and car type selection vary.
 
-### 4. Permanent upgrade system is narrower than the design vision
-
-- The design mentions unlocking broader tool types and abilities such as steam cleaners, leaf blowers, time extensions, and rare-item boosts in `Roguelike Design.md:33` through `Roguelike Design.md:47`.
-- Permanent upgrades in `game.js:1694` through `game.js:1762` cover time extensions, stat boosts, starting cash, and persistent character unlocks.
-- Specialized tools such as the steam cleaner and magnetic vacuum exist in run upgrades, but they still are not exposed as permanent unlock paths.
-
 ### 5. Difficulty scaling is present, but challenge variety is still shallow
 
 - The game does reduce time and add more cars in `game.js:1786` through `game.js:1799` and `game.js:1993` through `game.js:1997`.
