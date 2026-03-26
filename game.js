@@ -306,6 +306,8 @@ function formatMultiplierAsPercent(multiplier, inverse = false) {
 }
 
 function showFeedback(message, color = rgb(255, 255, 255)) {
+    announceCanvasStatus(message);
+
     if (!feedbackTextObject || !feedbackTextObject.exists()) {
         feedbackTextObject = add([
             text("", { size: 18 }),
@@ -640,6 +642,8 @@ loadSprite("titleLogo", "art/title.png"); // Load the title logo
 
 scene("title", () => {
 
+    resetRunHUD("Title Screen");
+
     // Add the background image to the title screen
 
     add([
@@ -837,6 +841,8 @@ scene("title", () => {
 // Character Unlock Scene
 
 scene("characters", () => {
+    resetRunHUD("Characters");
+
     // Sync character unlock status with save data
     const savedData = SaveSystem.load();
     characters.forEach(char => {
@@ -1027,6 +1033,8 @@ scene("characters", () => {
 
 scene("rules", () => {
 
+    resetRunHUD("Rules");
+
     add([
 
         rect(width(), height()),
@@ -1180,6 +1188,8 @@ scene("rules", () => {
 
 // --- Permanent Upgrades Shop Scene ---
 scene("permanentUpgrades", () => {
+    resetRunHUD("Permanent Upgrades");
+
     const savedData = SaveSystem.load();
     let currentStars = savedData.metaCurrency;
 
@@ -1380,15 +1390,96 @@ let timerInterval = null;
 let carsInLevel = []; // Array of car game objects in current level
 
 // UI References
-let scoreText;
-let timerText;
-let levelText;
 let interactionMenu = null; // Reference to the interaction menu group
 let targetCar = null; // Car currently targeted for interaction
 let isInteracting = false; // Flag to pause player movement during interaction
 let feedbackTextObject = null; // Reference to the persistent feedback text object
 let actionInProgress = false; // Flag to track if an action is currently in progress
 let actionProgressBar = null; // Reference to the action progress bar
+
+const hudElements = {
+    sceneLabel: document.getElementById("scene-label"),
+    runState: document.getElementById("run-state"),
+    canvasStatus: document.getElementById("canvas-status"),
+    cash: document.getElementById("hud-cash"),
+    level: document.getElementById("hud-level"),
+    timer: document.getElementById("hud-timer"),
+    event: document.getElementById("hud-event"),
+    upgrades: document.getElementById("hud-upgrades"),
+    upgradesEmpty: document.getElementById("hud-upgrades-empty"),
+    buffs: document.getElementById("hud-buffs"),
+    buffsEmpty: document.getElementById("hud-buffs-empty"),
+};
+
+function setTextContent(element, value) {
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+function setStatusList(listElement, emptyElement, items, fallbackText) {
+    if (!listElement || !emptyElement) {
+        return;
+    }
+
+    listElement.innerHTML = "";
+
+    if (!items || items.length === 0) {
+        emptyElement.hidden = false;
+        emptyElement.textContent = fallbackText;
+        return;
+    }
+
+    emptyElement.hidden = true;
+
+    items.forEach((item) => {
+        const entry = document.createElement("li");
+        entry.textContent = item;
+        listElement.appendChild(entry);
+    });
+}
+
+function announceCanvasStatus(message) {
+    setTextContent(hudElements.canvasStatus, message);
+}
+
+function updateRunHUD(options = {}) {
+    const {
+        scene = "Menu",
+        inRun = false,
+        cash = 0,
+        level = null,
+        timer = null,
+        eventName = "None",
+        eventSummary = "",
+        upgrades = [],
+        buffs = [],
+        runState = inRun ? "Run active" : "Run inactive",
+        announce = "",
+    } = options;
+
+    setTextContent(hudElements.sceneLabel, scene);
+    setTextContent(hudElements.runState, runState);
+    setTextContent(hudElements.cash, inRun ? `$${cash}` : "$0");
+    setTextContent(hudElements.level, inRun && level !== null ? `${level}` : "-");
+    setTextContent(hudElements.timer, inRun && timer !== null ? `${timer}s` : "-");
+
+    const eventLabel = inRun
+        ? (eventSummary ? `${eventName}: ${eventSummary}` : eventName)
+        : "None";
+    setTextContent(hudElements.event, eventLabel);
+
+    setStatusList(hudElements.upgrades, hudElements.upgradesEmpty, inRun ? upgrades : [], "No upgrades active.");
+    setStatusList(hudElements.buffs, hudElements.buffsEmpty, inRun ? buffs : [], "No buffs active.");
+
+    if (announce) {
+        announceCanvasStatus(announce);
+    }
+}
+
+function resetRunHUD(scene = "Menu", runState = "Run inactive") {
+    updateRunHUD({ scene, runState, inRun: false });
+}
 
 
 
@@ -1902,6 +1993,19 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     currentLevel = levelData.level;
 
     currentCash = levelData.cash;
+
+    updateRunHUD({
+        scene: "In Run",
+        inRun: true,
+        cash: currentCash,
+        level: currentLevel,
+        timer: timeLeft,
+        eventName: "None",
+        upgrades: playerUpgrades,
+        buffs: currentBuffs.map((buff) => buff.name),
+        runState: `Loading level ${currentLevel}`,
+        announce: `Level ${currentLevel} started`,
+    });
     
     // Track if this is the start of a new run (level 1 with 0 cash)
     const isNewRun = currentLevel === 1 && currentCash === 0;
@@ -1959,6 +2063,19 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         CONFIG.MIN_TIME
     );
 
+    updateRunHUD({
+        scene: "In Run",
+        inRun: true,
+        cash: currentCash,
+        level: currentLevel,
+        timer: timeLeft,
+        eventName: currentEventState.name || "None",
+        eventSummary: getEventSummary(currentEventState),
+        upgrades: playerUpgrades,
+        buffs: currentBuffs.map((buff) => buff.name),
+        runState: `Level ${currentLevel} active`,
+    });
+
     // Apply selected character's ability
     const selectedChar = characters.find(c => c.id === selectedCharacterId);
     if (selectedChar && selectedChar.applyAbility) {
@@ -1973,6 +2090,19 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     currentBuffs.forEach(buff => buff.apply());
 
     activeBuffs = [];
+
+    updateRunHUD({
+        scene: "In Run",
+        inRun: true,
+        cash: currentCash,
+        level: currentLevel,
+        timer: timeLeft,
+        eventName: currentEventState.name || "None",
+        eventSummary: getEventSummary(currentEventState),
+        upgrades: playerUpgrades,
+        buffs: currentBuffs.map((buff) => buff.name),
+        runState: `Level ${currentLevel} active`,
+    });
 
 
 
@@ -2132,14 +2262,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         if (player.pos.y > height() - 50) player.pos.y = height() - 50;
 
 
-
-        // Update inventory panel text
-
-        inventoryText.text =
-
-            "Upgrades:\n" + (playerUpgrades.length > 0 ? playerUpgrades.join("\n") : "None") +
-
-            "\n\nBuffs:\n" + (currentBuffs.length > 0 ? currentBuffs.map(b => b.name).join("\n") : "None");
 
         if (currentEventState.rainstorm) {
             applyRainstormVisibility(player, carsInLevel);
@@ -2405,12 +2527,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     // --- UI Setup ---
 
-    const uiMargin = 20;
-
-    const uiY = 20;
-
-
-
     // UI dirty flags to track which elements need updating
 
     const uiDirty = {
@@ -2431,48 +2547,24 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     const updateUI = (forceUpdate = false) => {
 
-        // Only update elements that are dirty or if forceUpdate is true
-
-        if ((uiDirty.cash || forceUpdate) && scoreText) {
-
-            scoreText.text = `Cash: $${currentCash}`;
+        if (uiDirty.cash || uiDirty.level || uiDirty.timer || uiDirty.inventory || forceUpdate) {
+            updateRunHUD({
+                scene: "In Run",
+                inRun: true,
+                cash: currentCash,
+                level: currentLevel,
+                timer: timeLeft,
+                eventName: currentEventState.name || "None",
+                eventSummary: getEventSummary(currentEventState),
+                upgrades: playerUpgrades,
+                buffs: currentBuffs.map((buff) => buff.name),
+                runState: actionInProgress ? "Action in progress" : `Level ${currentLevel} active`,
+            });
 
             uiDirty.cash = false;
-
-        }
-
-        
-
-        if ((uiDirty.level || forceUpdate) && levelText) {
-
-            levelText.text = `Level: ${currentLevel}`;
-
             uiDirty.level = false;
-
-        }
-
-        
-
-        if ((uiDirty.timer || forceUpdate) && timerText) {
-
-            timerText.text = `Time: ${timeLeft}s`;
-
             uiDirty.timer = false;
-
-        }
-
-        
-
-        if ((uiDirty.inventory || forceUpdate) && inventoryText) {
-
-            inventoryText.text =
-
-                "Upgrades:\n" + (playerUpgrades.length > 0 ? playerUpgrades.join("\n") : "None") +
-
-                "\n\nBuffs:\n" + (currentBuffs.length > 0 ? currentBuffs.map(b => b.name).join("\n") : "None");
-
             uiDirty.inventory = false;
-
         }
 
     };
@@ -2506,100 +2598,6 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         }
 
     };
-
-
-
-    // Create UI elements
-
-    scoreText = add([
-
-        text(`Cash: $${currentCash}`, { size: 24 }),
-
-        pos(uiMargin, uiY),
-
-        fixed(), // Keep UI fixed on screen
-
-        z(100), // Ensure UI is drawn on top
-
-        "scoreText"
-
-    ]);
-
-
-
-    levelText = add([
-
-        text(`Level: ${currentLevel}`, { size: 24 }),
-
-        pos(width() / 2, uiY), // Center horizontally
-
-        anchor("top"), // Anchor to top-center
-
-        fixed(),
-
-        z(100),
-
-        "levelText"
-
-    ]);
-
-
-
-    timerText = add([
-
-        text(`Time: ${timeLeft}s`, { size: 24 }),
-
-        pos(width() - uiMargin, uiY), // Right side
-
-        anchor("topright"), // Anchor to top-right
-
-        fixed(),
-
-        z(100),
-
-        "timerText"
-
-    ]);
-
-    if (currentEventState.name) {
-        add([
-            text(`Event: ${currentEventState.name} - ${getEventSummary(currentEventState)}`, { size: 16, width: 520 }),
-            pos(width() / 2, 52),
-            anchor("top"),
-            fixed(),
-            z(100),
-            color(255, 215, 0),
-            "eventText",
-        ]);
-    }
-
-
-
-    // Inventory panel (bottom right)
-
-    const inventoryText = add([
-
-        text(
-
-            "Upgrades:\n" + (playerUpgrades.length > 0 ? playerUpgrades.join("\n") : "None") +
-
-            "\n\nBuffs:\n" + (currentBuffs.length > 0 ? currentBuffs.map(b => b.name).join("\n") : "None"),
-
-            { size: 16 }
-
-        ),
-
-        pos(width() - 10, height() - 10),
-
-        anchor("botright"),
-
-        fixed(),
-
-        z(100),
-
-        "inventoryText"
-
-    ]);
 
 
 
@@ -2727,6 +2725,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         if (actionProgressBar) actionProgressBar.destroy();
 
         actionProgressBar = null;
+
+        resetRunHUD("Menu");
 
     }); // End of onSceneLeave
 
@@ -2900,9 +2900,25 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         actionProgressBar.add([
 
-            rect(100, 20, { radius: 4 }),
+            rect(220, 58, { radius: 8 }),
 
-            color(0, 0, 0, 0.7),
+            pos(0, -2),
+
+            color(12, 12, 12, 0.82),
+
+            outline(2, rgb(240, 240, 240)),
+
+            anchor("center"),
+
+        ]);
+
+        actionProgressBar.add([
+
+            rect(180, 20, { radius: 4 }),
+
+            pos(0, 12),
+
+            color(0, 0, 0, 0.78),
 
             outline(2, rgb(255, 255, 255)),
 
@@ -2918,7 +2934,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
             rect(0, 16, { radius: 3 }),
 
-            pos(-48, 0), // Position at left edge of background (-50 + 2 for padding)
+            pos(-88, 12),
 
             anchor("left"),
 
@@ -2932,9 +2948,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         actionProgressBar.add([
 
-            text(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)}ing...`, { size: 16 }),
+            text(`${actionType.charAt(0).toUpperCase() + actionType.slice(1)}ing ${carName}...`, { size: 16, width: 190, align: "center" }),
 
-            pos(0, -25),
+            pos(0, -12),
 
             anchor("center"),
 
@@ -2976,6 +2992,18 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
         // Set action in progress flag
 
         actionInProgress = true;
+        updateRunHUD({
+            scene: "In Run",
+            inRun: true,
+            cash: currentCash,
+            level: currentLevel,
+            timer: timeLeft,
+            eventName: currentEventState.name || "None",
+            eventSummary: getEventSummary(currentEventState),
+            upgrades: playerUpgrades,
+            buffs: currentBuffs.map((buff) => buff.name),
+            runState: `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} in progress`,
+        });
 
         hideInteractionMenu();
 
@@ -3020,7 +3048,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
             const progress = Math.min(elapsedTime / actionDuration, 1);
 
-            progressFill.width = progress * 96; // 96 is the full width
+            progressFill.width = progress * 176;
 
 
 
@@ -3631,6 +3659,8 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive data from main scene
 
+    resetRunHUD("Game Over", `Run ended on level ${level}`);
+
     // Calculate final score
     const finalScore = calculateScore({
         level: level || 1,
@@ -3745,6 +3775,14 @@ scene("gameOver", ({ cash, level, carsCompleted, totalCars }) => { // Receive da
 // --- Upgrade Scene ---
 
 scene("upgradeScene", ({ nextLevel, cash }) => {
+
+    updateRunHUD({
+        scene: "Upgrade Shop",
+        inRun: false,
+        cash,
+        runState: `Preparing level ${nextLevel}`,
+        announce: `Upgrade shop opened for level ${nextLevel}`,
+    });
 
 
 
