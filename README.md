@@ -8,7 +8,7 @@ Grime and Shine is a browser-based, vehicle-themed **roguelike** game. Players t
 
 - **Core Loop:** Interact with parked cars to perform actions: Search, Clean, or Vacuum. Each action takes time and earns cash.
 - **Level Progression:** Levels increase in difficulty with more cars spawning and less time available.
-- **Objective:** Complete a level by interacting with all cars before time runs out. If the timer expires, the level is still passed if at least 50% of cars were serviced.
+- **Objective:** Complete a level by servicing all cars before time runs out. If the timer expires, the level is still passed if at least 50% of cars were serviced.
 - **Roguelike Elements:**
     - **Upgrades:** After each successful level, choose one of three offered upgrades or temporary buffs to enhance player stats (e.g., speed, loot chance, alarm reduction) for the next level or the entire run.
     - **Perma-death (Run-based):** Failing a level (less than 50% cars serviced when time runs out) ends the current run.

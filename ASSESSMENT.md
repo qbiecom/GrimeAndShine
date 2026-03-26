@@ -14,12 +14,6 @@ This review focuses on implementation risks in `game.js` and `index.html`, secur
 
 ## Medium-Priority Code Quality / Logic Issues
 
-### 1. Level completion measures "interacted" cars, not completed service states
-
-- Time-out completion uses `car.interacted` in `game.js:2463` through `game.js:2498`.
-- Full completion also counts `car.interacted` in `game.js:3201` through `game.js:3225`.
-- This matches the current one-action model, but it weakens design intent around actually servicing cars and makes some upgrade descriptions misleading.
-
 ## Security Review
 
 ### 2. All progression and high-score state is fully client-trusted

@@ -359,7 +359,7 @@ function applyRainstormVisibility(player, cars) {
             return;
         }
 
-        if (car.interacted) {
+        if (car.completed) {
             car.opacity = 0.5;
             return;
         }
@@ -1090,13 +1090,13 @@ scene("rules", () => {
 
     const rules = [
 
-        "• Interact with cars to search, clean, or vacuum them.",
+        "• Service cars by searching, cleaning, or vacuuming them.",
 
         "• Each action earns you cash.",
 
-        "• Complete a level by interacting with all cars or when time runs out.",
+        "• Complete a level by servicing all cars or when time runs out.",
 
-        "• If time runs out, you need to have interacted with at least 50% of cars.",
+        "• If time runs out, you need to have serviced at least 50% of cars.",
 
         "• After each level, choose an upgrade to improve your skills.",
 
@@ -2275,7 +2275,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
         ]);
 // --- Initialize Car State Properties ---
-        car.completed = false; // Track if all tasks for this car are done
+        car.completed = false; // Track whether this car has been serviced
         car.state = 'idle'; // Initial state
 
         // --- Set Car State (only two possible states) ---
@@ -2378,7 +2378,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
     }
 
     if (currentEventState.customerDemands) {
-        const priorityCars = choosePriorityCars(carsInLevel.filter(car => !car.interacted), currentEventState.priorityCarCount || 2);
+        const priorityCars = choosePriorityCars(carsInLevel.filter(car => !car.completed), currentEventState.priorityCarCount || 2);
         currentEventState.priorityCarsRemaining = priorityCars.length;
 
         priorityCars.forEach((car) => {
@@ -2659,23 +2659,23 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-                // Count how many cars have been interacted with
+                // Count how many cars have been serviced
 
-                const interactedCars = carsInLevel.filter(car => car.interacted).length;
+                const completedCars = carsInLevel.filter(car => car.completed).length;
 
                 const totalCars = carsInLevel.length;
 
-                const interactionPercentage = totalCars > 0 ? (interactedCars / totalCars) * 100 : 0;
+                const completionPercentage = totalCars > 0 ? (completedCars / totalCars) * 100 : 0;
 
 
 
-                console.log(`Level ${currentLevel} ended. ${interactedCars}/${totalCars} cars interacted (${interactionPercentage.toFixed(1)}%).`);
+                console.log(`Level ${currentLevel} ended. ${completedCars}/${totalCars} cars serviced (${completionPercentage.toFixed(1)}%).`);
 
 
 
-                // Level is complete if at least 50% of cars have been interacted with
+                // Level is complete if at least 50% of cars have been serviced
 
-                if (interactionPercentage >= CONFIG.LEVEL_COMPLETE_THRESHOLD * 100) {
+                if (completionPercentage >= CONFIG.LEVEL_COMPLETE_THRESHOLD * 100) {
 
                     console.log(`Level ${currentLevel} complete! Advancing to upgrade screen.`);
 
@@ -2685,14 +2685,14 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 } else {
 
-                    console.log(`Level ${currentLevel} failed. Less than 50% of cars interacted.`);
+                    console.log(`Level ${currentLevel} failed. Less than 50% of cars serviced.`);
 
                     // Go to game over, passing all relevant data
 
                     go("gameOver", {
                         cash: currentCash,
                         level: currentLevel,
-                        carsCompleted: interactedCars,
+                        carsCompleted: completedCars,
                         totalCars: totalCars
                     });
 
@@ -3052,11 +3052,12 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-                // Mark car as interacted
+                // Mark car as serviced/completed
 
+                car.completed = true;
                 car.interacted = true;
 
-                car.opacity = 0.5; // Reduce opacity to show the car has been interacted with
+                car.opacity = 0.5; // Reduce opacity to show the car has been serviced
 // Update sprite to show completed state
                 const carType = car.carData.spriteName; // 'sedan' or 'sportscar'
                 car.use(getCarSpriteComponent(carType, "clean")); // Use clean sprite for completed cars
@@ -3074,7 +3075,7 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
                 
 
-                // Update the non-interacted cars list
+                // Update the remaining active cars list
 
                 updateNonInteractedCars();
 
@@ -3486,25 +3487,21 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
     }
 
-    // Function to check if all cars have been interacted with and end level if so
+    // Function to check if all cars have been serviced and end level if so
 
     function checkLevelComplete() {
 
-        // Count how many cars have been interacted with
+        // Count how many cars have been serviced
 
-        const interactedCars = carsInLevel.filter(car => car.interacted).length;
+        const completedCars = carsInLevel.filter(car => car.completed).length;
 
         const totalCars = carsInLevel.length;
 
-        const interactionPercentage = totalCars > 0 ? (interactedCars / totalCars) * 100 : 0;
+        // Level is complete when ALL cars have been serviced
 
+        if (completedCars === totalCars) {
 
-
-        // Level is complete when ALL cars have been interacted with
-
-        if (interactedCars === totalCars) {
-
-            console.log(`Level ${currentLevel} complete! All cars interacted with.`);
+            console.log(`Level ${currentLevel} complete! All cars serviced.`);
 
             if (timerInterval) clearInterval(timerInterval); // Stop timer immediately
 
@@ -3526,17 +3523,17 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-    // Track non-interacted cars separately for more efficient searching
+    // Track unserviced cars separately for more efficient searching
 
     let nonInteractedCars = [];
 
     
 
-    // Function to update the non-interacted cars list
+    // Function to update the unserviced cars list
 
     const updateNonInteractedCars = () => {
 
-        nonInteractedCars = carsInLevel.filter(car => !car.interacted);
+        nonInteractedCars = carsInLevel.filter(car => !car.completed);
 
     };
 
@@ -3562,9 +3559,9 @@ scene("main", (levelData = { level: 1, cash: 0 }) => {
 
 
 
-        // Find the closest non-interacted car within range
+        // Find the closest unserviced car within range
 
-        // Only search through non-interacted cars for better performance
+        // Only search through unserviced cars for better performance
 
         for (const car of nonInteractedCars) {
 
